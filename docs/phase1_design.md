@@ -1,133 +1,149 @@
-# Phase 1 Design — Rural Development Simulation
+# 第一階段遊戲設計與完整開發規劃（Phase 1）
 
-**Status:** Draft for review  
-**Version:** 0.1  
-**Date:** 2026-11-02  
-**Target:** Single-developer, mobile-friendly Web MVP  
-**Scope:** Rendering, zoning, autonomous development, simplified economy, migration
+**狀態：** 待審核草案  
+**版本：** 0.1  
+**日期：** 2026-11-02  
+**目標：** 單人開發、支援手機瀏覽器的可玩 MVP  
+**範圍：** 3D 呈現、土地分區、自主發展、簡化經濟、人口遷移
 
-## 1. Executive summary
+> 本文件以繁體中文撰寫。程式識別字、程式碼與程式碼註解維持英文。已確認的遊戲決策與尚待審核的技術提案明確分開。
 
-Build a playable 64×64 fixed-map, cozy low-poly 3D rural development simulation. The player is a fictional **Rural Development Director** responsible for land-use planning, special/public buildings, and a shared treasury. Private agriculture, residential, and commercial buildings develop autonomously in response to economic demand and land conditions. Roads are generated with zones/buildings, never painted manually.
+## 一、專案目標與產品定位
 
-**Core playable loop:** zone land → pay planning costs → wait for autonomous development → observe jobs, population, production and tax changes → reinvest or recover.
+打造原創的農村／城市發展經營遊戲。玩家擔任虛構的「農村發展管理者」，透過土地規劃、特殊公共建設與財務管理，讓聚落自然成長。遊戲的核心是**城市規劃與賺錢**，不強迫玩家採取農業、商業或觀光等固定發展路線。
 
-Phase 1 is a deliberately narrow vertical slice, **not** the complete agriculture, tourism, contract, election or land-market game.
+畫面採用溫暖、可愛的 **Low-poly 3D 微縮世界**，固定斜角正交視角。受到經典城市模擬遊戲的自主發展機制，以及溫馨生活遊戲的視覺氛圍啟發，但不複製既有遊戲規則。
 
-## 2. Decision register
+**第一階段的核心循環：**
 
-### Confirmed product decisions
+1. 玩家選擇農業、住宅或商業分區。
+2. 系統顯示土地規劃與用途變更成本。
+3. 玩家支付成本，土地完成分區。
+4. 模擬系統根據需求與土地條件，逐步生成私人建築。
+5. 人口、就業、農業產出與商業活動改變。
+6. 財政收入與維護費用結算，玩家再決定如何投資。
 
-| ID | Decision | Notes |
+**Phase 1 成功標準：** 玩家能在桌面與手機瀏覽器操作 64×64 的 3D 村莊，透過分區與有限預算，觀察可解釋的自主建築發展和人口／財務變化。
+
+## 二、設計決策紀錄
+
+### 2.1 已確認的產品決策
+
+| 編號 | 決策 | 說明 |
 | --- | --- | --- |
-| D-01 | Player is a fictional Rural Development Director | Can manage planning and cooperative-like economic activities |
-| D-02 | Core is city planning and making money | Strategy arises from land opportunity cost and treasury |
-| D-03 | Fixed 64×64 map (4,096 tiles) | No procedural infinite expansion |
-| D-04 | Fixed-angle orthographic cozy low-poly 3D | No 2D renderer or free-roaming 3D camera |
-| D-05 | Mobile and desktop web browser | Touch controls required |
-| D-06 | Hybrid construction | Zone-based private development plus player-placed special/public buildings |
-| D-07 | Agriculture, residential and commercial zones | Phase 1 playable zone types |
-| D-08 | Zoning and conversion incur costs | Demolition/compensation may incur costs |
-| D-09 | Zones/buildings generate their own roads | No manual road placement |
-| D-10 | Autonomous population and business migration | Demand-driven and observable |
-| D-11 | Shared public treasury | Commercial taxes, eligible public-land rent, public facilities and agricultural trade can eventually contribute |
-| D-12 | Public/private land distinction | Phase 1 may defer detailed ownership transactions |
-| D-13 | Long-term overdraft cap: 10 million | Full debt/insolvency model deferred |
-| D-14 | Long-term game ends when player loses reelection | Elections deferred beyond Phase 1 |
-| D-15 | One wholesale market per crop in initial agriculture expansion | Market expansion deferred |
-| D-16 | Guaranteed crop purchase contracts and flexible spot prices | Deferred beyond Phase 1 |
-| D-17 | Farmers independently choose crops with growth-time lock-in | Detailed model deferred |
-| D-18 | No mandatory village development archetypes | Agricultural, commercial, cultural/tourism outcomes emerge from policies and zoning |
+| D-01 | 玩家是原創「農村發展管理者」 | 不受現實農會或政府法規職權限制 |
+| D-02 | 核心是城市規劃與經營獲利 | 農業、商業與未來觀光皆可成為主要產業 |
+| D-03 | 地圖固定 64×64 | 共 4,096 個 Tile，並非 4,096 棟建築 |
+| D-04 | 固定斜角、正交投影、Low-poly 3D | 不製作 2D 模式或自由旋轉相機 |
+| D-05 | 目標平台為 Web Browser | 桌面與手機都必須能操作 |
+| D-06 | 分區與特殊建築混合制 | 私人建築自主生成，特殊／公共建築由玩家放置 |
+| D-07 | 第一階段有農業、住宅、商業分區 | 其他用途留待後續擴充 |
+| D-08 | 分區與用途變更需要費用 | 拆除及補償可產生額外成本 |
+| D-09 | 分區或建築自帶道路 | 玩家不需要手動鋪路 |
+| D-10 | 人口與商家可自主遷入遷出 | 不模擬每個 NPC 的完整 AI |
+| D-11 | 玩家管理單一公共財政帳戶 | 未來可包含稅收、公共土地租金、農產交易與設施收入 |
+| D-12 | 公共／私人土地可共存 | 詳細所有權交易延後 |
+| D-13 | 長期財務規則：最多透支 1,000 萬 | Phase 1 可先實作基本交易限制 |
+| D-14 | 長期規則：連任失敗結束遊戲 | 選舉系統延後 |
+| D-15 | 初期每種農作物使用單一盤商市場 | 完整農產市場不納入 Phase 1 |
+| D-16 | 未來有浮動收購價與保證收購合約 | 履約、庫存與信用風險延後 |
+| D-17 | 農戶未來自主選擇作物且受生長期約束 | Phase 1 改用農業總量指標 |
+| D-18 | 不設定固定村莊類型升級樹 | 聚落風格由土地配置與經濟結果自然形成 |
 
-### Proposed engineering defaults — **not yet approved**
+### 2.2 尚待 Review 的技術預設
 
-| Area | Proposal | Trade-off / validation |
+| 項目 | 建議 | 理由與待驗證事項 |
 | --- | --- | --- |
-| Renderer | Three.js with TypeScript | Verify device compatibility and build/asset workflow |
-| UI | Lightweight web UI (framework undecided) | Avoid choosing framework before UI prototype |
-| Simulation | Pure TypeScript, browser-local initially | Deterministic tests; server authority not needed for offline MVP |
-| Persistence | Local save with versioned schema | Cloud sync later |
-| Tick | Monthly economic tick; pause/1×/2×/4× | Test whether feedback feels responsive |
-| Terrain | Pre-authored small height variation; no terrain editing | Slope/building placement complexity contained |
-| Map | Tile grid + parcel instances | Building footprints may span multiple tiles |
-| Backend | None required for Phase 1 gameplay | Vercel can host static frontend; AWS EC2 reserved for later need |
+| Rendering | Three.js + TypeScript | 輕量、可控制渲染成本；需實機測試 |
+| UI Framework | 暫不決定 | 先驗證 3D 操作與 HUD 需求 |
+| Simulation | 瀏覽器端 Pure TypeScript | 易測試、低成本、免伺服器同步 |
+| 存檔 | 本機、具版本的儲存格式 | 雲端同步延後 |
+| 時間 | 每月結算；暫停、1×／2×／4× | 需測試玩家回饋速度 |
+| 地形 | 預先配置少量高低差 | 不提供地形編輯 |
+| 資料模型 | Tile Grid + Parcel + Building | 支援多格建築與不同土地用途 |
+| Backend | Phase 1 不需要常駐後端 | Vercel 靜態部署；AWS EC2 保留未來使用 |
 
-## 3. Scope and exclusions
+## 三、第一階段範圍與刪減
 
-### In scope
+### 3.1 必做功能
 
-1. A visually coherent 64×64 low-poly map with fixed orthographic angle.
-2. Mouse and touch pan/zoom, accurate tile picking, visible placement preview.
-3. Agriculture/residential/commercial zoning; zone painting, undo/cancel, treasury deduction.
-4. Auto-generated visual roads as part of zone/parcel presentation.
-5. Simple parcels and private building spawn/abandonment/one-level growth.
-6. Aggregate agriculture, residential and commercial demand.
-7. Monthly treasury and population changes, with an understandable dashboard.
-8. One or two player-placed special buildings to validate hybrid construction.
-9. Local save/load, deterministic simulation tests and mobile performance checks.
+- 64×64 固定地圖、低多邊形 3D 地形與固定斜角相機。
+- 滑鼠及觸控的平移、縮放、選取與分區繪製。
+- 農業、住宅、商業分區；預覽成本、確認、取消與必要的復原。
+- 分區／建築自動附帶道路或農路的視覺呈現。
+- Parcel 與建築佔地模型；建築隨需求自主生成、閒置或退出。
+- 三類分區的簡化需求指數。
+- 財政收支、人口、住宅容量與就業指標。
+- 至少一種玩家直接放置的特殊／公共建築，驗證混合建造。
+- 本機存檔、可重現的模擬測試、手機效能驗證。
 
-### Explicitly out of scope
+### 3.2 明確延後的功能
 
-- Elections, detailed approval ratings and game-over politics.
-- Guaranteed purchase contracts, detailed crop lifecycle, per-farmer capital and inventories.
-- Crop perishability, cold storage, multiple wholesale markets and processing chains.
-- Tourism economy, heritage preservation and scripted village archetypes.
-- Dynamic weather, seasonal disasters and random events.
-- Realistic road/pathfinding/traffic simulation.
-- Land auctions, ownership transfer and compensation negotiation.
-- Multiplayer, authentication, cloud saves, EC2 service and database.
-- Fully simulated individual residents or shops.
-- 2D fallback, unrestricted 3D camera and free terrain sculpting.
+- 選舉、滿意度政治與失去連任的結束條件。
+- 農戶逐戶資產、作物多階段生長、農產收購合約。
+- 倉儲、腐敗、冷鏈、加工與多個盤商市場。
+- 觀光客、文化保存、古蹟與特殊村莊分類。
+- 天氣、季節、災害、隨機事件。
+- 車輛、道路路網與逐車交通模擬。
+- 土地買賣、完整所有權轉移及補償協商。
+- 完整 NPC／商家個體 AI、多人連線、帳號與雲端存檔。
+- 自由旋轉相機、2D 替代模式、地形雕塑。
+- AWS EC2 常駐服務與正式資料庫。
 
-Deferring a feature does **not** revoke the long-term design decision.
+以上是**延後實作，不是撤銷長期設計**。
 
-## 4. System architecture
+## 四、技術架構
+
+### 4.1 分層原則
 
 ```text
-Web UI (tools, treasury, overlays, dashboard)
-             |
-        Game Controller
-             |
-   Commands / State / Events
-             |
-+------------+------------------+
-| Simulation Core (pure TS)      |
-| Map / Zoning / Parcels         |
-| Development / Economy         |
-| Population / Time             |
-+------------+------------------+
-             |
-       Render Projection
-             |
- Three.js Renderer (3D only)
-             |
-        Browser GPU
+UI / HUD / Input
+      |
+Game Controller
+      |
+Commands / Events / Snapshots
+      |
+Simulation Core (Pure TypeScript)
+  |-- Map / Zoning / Parcels
+  |-- Demand / Development
+  |-- Economy / Migration / Time
+      |
+Render Projection
+      |
+Three.js Scene / Camera / Picking
+      |
+Browser GPU
 ```
 
-**Separation rule:** simulation code cannot import Three.js, browser DOM or UI framework APIs. Rendering reads state snapshots and events; it does not own economic rules. UI emits validated commands, never mutates the simulation directly.
+**強制邊界：** Simulation 不依賴 Three.js、DOM 或前端框架；Rendering 只能讀取狀態快照及事件，不擁有經濟規則。UI 透過驗證過的 Command 修改狀態，禁止直接修改 Simulation State。
 
-Proposed package/module boundaries (not a mandatory monorepo):
+### 4.2 建議模組
 
-- `src/simulation/`: pure state transitions, formulas, seeded RNG, commands.
-- `src/world/`: tiles, parcels, zoning constraints, building definitions.
-- `src/rendering/`: scene, orthographic camera, instancing, picking, render projection.
-- `src/ui/`: zoning controls, budget, time controls, overlays.
-- `src/persistence/`: save schema, migrations, storage adapter.
-- `src/data/`: versioned balancing tables for costs and demand.
-- `tests/`: unit, scenario, integration and performance tests.
+| 模組 | 責任 |
+| --- | --- |
+| `src/simulation/` | 純函式狀態轉移、時間推進、隨機種子、經濟公式 |
+| `src/world/` | Tile、Parcel、分區規則、建築定義 |
+| `src/rendering/` | Three.js Scene、Camera、Instancing、Picking |
+| `src/ui/` | 分區工具、財務面板、時間控制、圖層 |
+| `src/persistence/` | 存檔 Schema、版本遷移、儲存 Adapter |
+| `src/data/` | 分區費用、建築參數、需求與平衡數值 |
+| `tests/` | 單元、情境、整合與效能測試 |
 
-## 5. Map, zoning and parcels
+避免一開始建立微服務、事件匯流排、複雜 ECS 或不必要的共用套件。只有在真實需求出現後才拆分。
 
-### Map invariants
+### 4.3 部署與環境
 
-- Width = height = 64; exactly 4,096 tile positions.
-- A tile may be empty, reserved, zoned, or occupied according to an explicit state model.
-- Building footprints may consume multiple tiles; therefore **4,096 is not the actual building count**.
-- Map dimensions remain data-driven even though the first scenario is fixed at 64×64.
-- Terrain elevation is independent of zone and ownership.
-- Ownership (public/private) is distinct from land use; detailed rent transactions are Phase 2.
+- **開發主機：** Mac mini M4、macOS、ARM64。
+- **前端：** TypeScript，部署至 Vercel。
+- **模擬：** Phase 1 優先在瀏覽器執行。
+- **AWS：** EC2、Docker 可供後續伺服器需求使用；不為了符合既定基礎設施而增加不必要成本。
+- **CI：** 每個 PR 執行型別檢查、Lint、單元測試及建置；每個里程碑提供可操作的 Preview。
 
-### Proposed core data
+## 五、地圖、土地與分區系統
+
+### 5.1 空間資料模型
+
+固定 64×64 Tile，共 4,096 格。Tile 不等於建築：建築、農田、道路與地形可占用多格。土地用途、地形高度、Parcel、建築與所有權為不同維度。
 
 ```ts
 type ZoneType = "none" | "agriculture" | "residential" | "commercial";
@@ -159,80 +175,86 @@ interface Building {
 }
 ```
 
-Data structures are illustrative. Parcel splitting/merging, footprint placement and ownership must be deterministic and independently tested.
+這是**概念 Schema**，不是已核准的最終 API。Parcel 分割、合併、佔地及建築配置必須可重現、可測試。
 
-### Zoning commands
+### 5.2 分區操作
 
-`ApplyZone(tiles, targetZone)` should:
-1. Validate map bounds, immutable/reserved land, footprint conflicts and terrain constraints.
-2. Compute cost and show preview before commit.
-3. Reject unaffordable operations atomically; no partial silent changes.
-4. Apply zoning, update parcels and record treasury transaction.
-5. Emit events for rendering/UI.
+`ApplyZone(tiles, targetZone)` 的處理流程：
 
-**Cost proposal:**
+1. 驗證座標、地形、保留地、既有建築與用途衝突。
+2. 計算分區、轉換、拆除／補償費用。
+3. 在 UI 顯示預覽與總額。
+4. 驗證財政可負擔，否則整筆拒絕；不得默默部分成功。
+5. 更新 Tile、Parcel、財務交易紀錄。
+6. 發送事件供 Renderer 和 HUD 更新。
+
+暫定公式：
 
 ```text
-zoningCost = sum(baseZoneCost[zone] × terrainMultiplier[tile])
+zoningCost = sum(baseZoneCost[zone] * terrainMultiplier[tile])
 conversionCost = sum(conversionFee[fromZone][toZone])
 totalCost = zoningCost + conversionCost + demolitionAndCompensation
 ```
 
-No specific prices are locked until playtesting. Avoid charging the player the full cost of private buildings; private development is funded by the simulated private sector.
+實際費率需透過遊玩測試調整。**私人建築的建造費用不可全部算到玩家公共財政**；玩家支付的是分區與公共建設成本。
 
-### Automatic roads
+### 5.3 自動道路
 
-Roads are **not a player-painted network**. Each zone/parcel/building may generate road/footpath visuals and include a bundled infrastructure cost. Phase 1 uses simple access/terrain modifiers rather than a graph traffic simulation. Ensure road visuals do not secretly create extra buildable capacity or overlap structures.
+不提供手動道路工具。分區、Parcel 或特殊建築建立時，系統依模板自動生成道路／農路視覺，費用包含在土地開發或建築成本內。
 
-## 6. Autonomous development
+Phase 1 不計算完整道路圖與車流；可用簡單的可達性與地形係數影響發展效率。須驗證道路不與建築碰撞，也不憑空增加可建築面積。
 
-### Development pipeline (per monthly tick)
+## 六、自主建築發展
 
-1. Compute aggregate zone demand from population, employment, production and treasury conditions.
-2. Determine feasible vacant parcels (zone, footprint, terrain, available capacity).
-3. Compute a development score using demand, suitability, infrastructure and costs.
-4. Use seeded probabilistic selection with a per-tick development cap.
-5. Spawn, upgrade or abandon buildings; emit explainable events.
-6. Update occupied capacity and economic aggregates.
+### 6.1 每個模擬 Tick 的開發流程
 
-Proposed illustrative formula (parameters subject to tuning):
+1. 根據人口、工作、產出及經濟狀況計算分區需求。
+2. 找出符合分區、地形、佔地與容量條件的空 Parcel。
+3. 依需求、土地適宜性、可達性、開發阻力計算分數。
+4. 使用固定 Seed 的 PRNG，並限制每個 Tick 的開發數量。
+5. 生成一級建築、維持閒置或退出；記錄原因。
+6. 更新住宅容量、就業、農業與商業活動指標。
+
+示意公式：
 
 ```text
 score(parcel, zone) =
-    wDemand × normalizedDemand[zone]
-  + wSuitability × suitability[parcel]
-  + wAccess × accessibility[parcel]
-  - wCost × developmentFriction[parcel]
+    wDemand * normalizedDemand[zone]
+  + wSuitability * suitability[parcel]
+  + wAccess * accessibility[parcel]
+  - wCost * developmentFriction[parcel]
 
 probability = sigmoid(score)
 ```
 
-**Important:** do not allow unconstrained compounding. Development requires both demand and physical capacity; use hysteresis/cooldowns to prevent rapid build-demolish oscillation. One development stage (vacant → level 1) is sufficient for the first playable version.
+參數與正規化方式都需後續調整。**不能因為機率大於零就無限長出建築**；必須同時滿足需求、土地容量與開發上限。加入 Cooldown 或 Hysteresis，避免建築每月反覆出現與消失。
 
-## 7. Population and economic simulation
+第一版只需要「空 Parcel → 一級建築」，不做完整升級樹。
 
-### Minimal state
+## 七、人口與簡化經濟
 
-- Household count, population and available residential capacity.
-- Agricultural production index and commercial activity index.
-- Employment capacity and unemployment proxy.
-- Treasury balance, recurring revenues and maintenance expenses.
-- Demand indices for three zone types.
-- Optional recent trend history for the dashboard.
+### 7.1 最小模擬狀態
 
-### Migration
+- 家戶數、人口數、住宅容量與空屋數。
+- 農業產出指數、商業活動指數。
+- 工作容量與簡化失業指標。
+- 財政餘額、收入、維護與營運支出。
+- 農業／住宅／商業需求指數。
+- 最近數期趨勢，供玩家判斷政策效果。
 
-Migration is driven by a village attractiveness score and available residential/jobs capacity; use a bounded expected household flow and seeded rounding. People must not move in without available housing. Outmigration should react to prolonged poor economic conditions rather than a single tick.
+### 7.2 人口遷入遷出
+
+不建立每位居民的 AI。依工作機會、服務、環境、生活成本等條件計算吸引力，並受住宅容量限制。
 
 ```text
 attractiveness = incomeOpportunity + services + environment - livingCost - risk
-expectedInflow = min(housingVacancy, max(0, migrationRate × (attractiveness - baseline)))
-expectedOutflow = min(existingHouseholds, max(0, exitRate × (baseline - attractiveness)))
+expectedInflow = min(housingVacancy, max(0, migrationRate * (attractiveness - baseline)))
+expectedOutflow = min(existingHouseholds, max(0, exitRate * (baseline - attractiveness)))
 ```
 
-These are **prototype formulas**, not final balance equations. Define normalizations, units and parameter ranges in data tables. Distinguish residents, households, businesses and buildings so occupancy cannot exceed capacity.
+此公式僅供原型驗證；各項單位、權重與邊界必須資料化。人口不能超出住宅容量；遷出應對長期經濟問題反應，避免單月波動導致劇烈震盪。
 
-### Simplified treasury
+### 7.3 公共財政
 
 ```text
 closingCash = openingCash
@@ -244,174 +266,179 @@ closingCash = openingCash
             - publicOperatingCost
 ```
 
-Phase 1 should show each revenue and expense separately. Avoid treating all private commercial turnover or tourism spending as public income. Public land rent and detailed agricultural purchase/resale profit are future extensions.
+每筆收入與支出要有明確分類與交易紀錄。私人商家的營業額不等於玩家稅收；私人觀光消費也不能直接算成公共收入。
 
-**Debt:** preserve the confirmed 10-million maximum overdraft as a configurable guardrail, but postpone interest, creditor behavior and election penalties. Never allow a transaction to bypass the applicable credit limit.
+長期透支上限為 1,000 萬。Phase 1 可先實作餘額與交易檢查，利息、信用及選舉處罰留到後續。
 
-### Economic invariants
+### 7.4 經濟不變條件（Invariants）
 
-- No money appears in the treasury merely because a building is placed.
-- No double counting of private revenue as public income.
-- No migration beyond physical housing capacity.
-- No private development on blocked or occupied land.
-- Zoning expense and recurring maintenance are visible and testable.
-- Scenarios should not grow indefinitely without demand or constraints.
+- 不能因為放置私人建築就直接增加公共現金。
+- 同一筆私人營收不能重複計算為稅金、租金與交易利潤。
+- 人口不可超出住宅容量。
+- 建築不可占用無效、禁止開發或已被占用的地塊。
+- 分區費用、維護成本必須可追溯。
+- 沒有需求或資源限制時，不得無限自動成長。
 
-## 8. Time and determinism
+## 八、時間推進與可重現性
 
-Use a fixed simulation step separate from rendering frames. Proposed monthly tick, with pause and 1×/2×/4× speed controls. Real-time interpolation is presentation-only.
+建議使用固定的模擬 Tick（暫定每月），與 Rendering FPS 完全分離。支援暫停及 1×／2×／4×，視覺插值只影響呈現，不影響經濟結果。
 
-Seed the PRNG. Given the same initial state, command sequence, balance table version and seed, the simulation must produce identical state hashes. Keep a bounded event log for explainability and debugging.
+使用 Seeded PRNG：相同初始狀態、玩家指令、參數版本與 Seed，應產生完全相同的結果。保留有限長度的事件紀錄，方便 QA 重播與玩家理解。
 
-Recommended tick order:
+建議 Tick 順序：
 
-1. Apply validated player commands.
-2. Update production and business activity.
-3. Calculate income, costs and treasury.
-4. Calculate zone demand.
-5. Process development and occupancy.
-6. Process migration.
-7. Publish snapshot/events and advance month.
+1. 套用驗證過的玩家指令。
+2. 更新農業產出與商業活動。
+3. 結算收入、支出與財政。
+4. 計算土地需求。
+5. 更新建築發展與使用狀態。
+6. 處理人口遷入遷出。
+7. 發布狀態快照並推進時間。
 
-Use explicit prior-state reads or staged updates to avoid accidental ordering dependencies. Record which variables use current-tick versus previous-tick values.
+需明確區分「本期」與「前期」資料，避免計算順序引入非預期結果。
 
-## 9. Rendering and mobile UX
+## 九、3D Rendering 與 UI/UX
 
-### Rendering proposal
+### 9.1 渲染策略
 
-- Three.js + TypeScript, fixed orthographic camera, fixed angle.
-- Stylized low-poly meshes with small material palette and limited lighting.
-- Chunked terrain mesh, instancing for repeated crops/trees/props, batched static geometry where appropriate.
-- Frustum culling, capped device pixel ratio, reduced shadows/post-processing.
-- Render only changes required by simulation/interaction; avoid full scene rebuild each tick.
-- Tile/parcel selection via raycasting against simple collision proxies, not high-poly visual meshes.
+- Three.js + TypeScript 為候選方案，固定正交相機與固定斜角。
+- 使用簡單 Low-poly Mesh、有限材質與低成本光照。
+- 地形以 Chunk 管理；重複樹木、農作物與裝飾物優先使用 Instancing。
+- 使用視錐裁切、受控 Device Pixel Ratio、有限陰影與後處理。
+- 模擬 Tick 不應導致整個 Scene 重建；只更新受影響物件。
+- 點擊選取使用簡化的碰撞／Raycasting 代理，不依賴複雜美術 Mesh。
 
-### Controls
+### 9.2 操作設計
 
-Desktop: click/tap to select, drag to paint, drag/pan camera, wheel/pinch zoom, clear placement preview and cost.
+**桌面：** 點選地塊、拖曳劃分區、相機平移、滾輪縮放、預覽成本。
 
-Mobile: single-finger selection/paint with an explicit active tool, two-finger pan/zoom or a clearly defined alternative; protect against accidental zoning while navigating. Provide undo before irreversible demolition, readable HUD, and responsive hit targets.
+**手機：** 明確的工具模式、單指點選或劃分區、雙指平移／縮放或等效方案；必須避免相機移動時誤觸建造。HUD 應可讀，按鈕與點擊區域要適合觸控。
 
-### Performance targets (proposed acceptance gates)
+高風險操作（如拆除）需確認或提供復原；不要求每次普通分區都多一道確認。
 
-- Target 30 FPS or better on a **specified midrange phone**, not an unspecified device.
-- Desktop target 60 FPS on a documented test machine.
-- No persistent frame spikes during zoning or monthly simulation.
-- Record scene draw calls, triangle count, texture memory estimates, first interactive load time and browser memory where measurable.
-- Establish an asset budget only after a real device baseline; do not invent universal memory limits.
+### 9.3 效能目標（待實測確認）
 
-Performance targets are provisional until actual device testing.
+| 指標 | 暫定目標 |
+| --- | --- |
+| 中階手機 | 30 FPS 以上 |
+| 開發用桌面 | 60 FPS |
+| 分區操作 | 不出現持續性的畫面停頓 |
+| 模擬 Tick | 不因經濟計算造成明顯卡頓 |
+| 量測項目 | FPS、Draw Calls、Triangles、資產大小、載入時間、記憶體 |
 
-## 10. Save/load and deployment
+不在缺乏實測的情況下宣稱所有手機都能達標。需記錄具體裝置、瀏覽器與測試場景。
 
-Phase 1: versioned local JSON state, schema validation and migration hook; use browser storage appropriate to measured save size (IndexedDB if needed). Autosave at safe simulation boundaries; provide export/import only if useful for QA.
+## 十、存檔、CI 與部署
 
-Deploy static frontend to Vercel. No EC2 or Docker runtime is needed for the first browser-local gameplay loop. Preserve an adapter boundary so AWS services can be introduced when accounts, cloud saves, multiplayer or authoritative simulation actually justify the cost.
+- Phase 1 使用本機版本化存檔格式，具備 Schema 驗證與版本升級入口。
+- 儲存方式依實際資料量決定；若 Local Storage 不適合，改用 IndexedDB。
+- 自動存檔發生在安全的模擬狀態邊界。
+- CI 執行型別檢查、Lint、測試與 Production Build。
+- Vercel 提供 Preview Deployment；Phase 1 不需要 AWS EC2。
+- 保留 Persistence Adapter 與未來 API 邊界，但不預先實作後端服務。
 
-Mac mini M4/ARM64 is the development environment. Avoid a required backend during Phase 1.
+## 十一、里程碑與工作量
 
-## 11. Milestones and deliverables
-
-| Milestone | Goal | Main deliverable | Exit gate |
+| 階段 | 主要工作 | 可交付成果 | 驗收門檻 |
 | --- | --- | --- | --- |
-| M0 | Project bootstrap | TypeScript build, tests, lint, CI, Vercel preview | Reproducible local and CI build |
-| M1 | 3D scene | 64×64 terrain, fixed camera, sample assets | Stable desktop/mobile navigation |
-| M2 | Spatial interaction | Tile picking, zone paint/preview, cost/undo | No invalid or partial zoning commits |
-| M3 | Parcels and roads | Parcel placement, generated road visuals, footprints | No overlaps; deterministic parcels |
-| M4 | Autonomous growth | Demand, spawn/abandon, event explanations | Same seed/commands produce same growth |
-| M5 | Economy and migration | Treasury, tax, costs, households, capacity | Budget and population invariants hold |
-| M6 | Persistence and polish | Save/load, HUD, QA scenarios, profiling | Full gameplay loop on target devices |
+| M0：專案初始化 | TS、Build、Lint、Test、CI、Vercel | 可重現的開發與部署流程 | 本機與 CI 均可成功建置 |
+| M1：3D 場景 | 64×64 地形、相機、測試建築 | 可瀏覽的微縮村莊 | 桌面與手機平移／縮放穩定 |
+| M2：分區互動 | Picking、Brush、預覽、成本、Undo | 可操作土地規劃 | 無越界、無部分扣款 |
+| M3：Parcel 與道路 | 地塊配置、多格佔地、自動道路 | 建築配置基礎 | 無重疊且結果可重現 |
+| M4：自主發展 | 需求、生成、閒置、事件原因 | 可觀察的村莊成長 | 相同 Seed 結果一致 |
+| M5：財務與人口 | 稅收、成本、家戶、容量、遷移 | 完整經營循環 | 財務與人口 Invariant 成立 |
+| M6：存檔與品質 | Save/Load、HUD、情境測試、Profiling | 可供試玩的 MVP | 通過核心驗收與手機實測 |
 
-**Rough estimate:** 33–57 focused engineering days for one developer, **not a delivery commitment**. Art pipeline, mobile bugs and balancing are the largest uncertainties. Re-estimate after M1/M2.
+**粗估：33–57 個完整工程工作天**，不是交付承諾。最大變數為 3D 美術製作、手機瀏覽器相容性與經濟平衡。完成 M1／M2 後應重新估時。
 
-### Suggested build order
+### 執行順序
 
-- M0–M2 first: validate rendering, camera and zoning UX before implementing economy.
-- M3–M4: demonstrate visible autonomous growth.
-- M5: make planning financially consequential.
-- M6: make it reliably playable and reviewable.
+- **M0–M2：** 優先驗證 Rendering、相機、觸控及分區體驗。
+- **M3–M4：** 讓分區開始長出建築，確認自主發展有趣。
+- **M5：** 讓財政與人口產生真正的策略取捨。
+- **M6：** 補上存檔、效能與穩定性，完成可玩版本。
 
-Each milestone should end with a deployable Vercel preview and a short decision/issue log.
+每個里程碑都應有可操作的 Preview 與簡短的設計／風險紀錄。
 
-## 12. Testing strategy
+## 十二、QA 與測試策略
 
-### Unit and property tests
+### 12.1 單元測試與屬性測試
 
-- Tile index/coordinate conversion, bounds and footprint collision.
-- Zone conversion cost, atomic transaction and credit limit.
-- Parcel formation and ownership of occupied tiles.
-- Deterministic RNG and simulation state transitions.
-- Treasury conservation/accounting invariants.
-- Migration bounded by housing and household counts.
-- Save/load round-trip and schema version rejection/migration.
+- Tile 座標／索引轉換、邊界與多格建築碰撞。
+- 分區與轉換費用、原子性交易、透支限制。
+- Parcel 分割／配置與地塊占用一致性。
+- Seeded PRNG 與模擬狀態可重現性。
+- 財政交易加總、收入／支出分類。
+- 人口、家戶與住宅容量限制。
+- 存檔 Round-trip、Schema 版本驗證與遷移。
 
-### Scenario tests
+### 12.2 情境測試
 
-1. **Agricultural village:** agriculture-focused zoning should produce agriculture activity without forcing commercial growth.
-2. **Commercial transition:** converting agricultural land to commercial should cost money and reduce agricultural capacity.
-3. **No demand:** empty demand should not produce unlimited buildings.
-4. **Over-budget zoning:** insufficient funds should reject the whole operation.
-5. **Population stress:** residential capacity limits migration.
-6. **Reproducibility:** same seed + actions + parameters yields identical outcomes.
+1. **農業村：** 大量農業分區能發展農業，但不強迫商業同步成長。
+2. **商業轉型：** 農地轉商業需付費，且農業容量下降。
+3. **無需求：** 沒有足夠需求時，不會無限生成建築。
+4. **財政不足：** 無法負擔的分區操作整筆失敗。
+5. **住宅不足：** 遷入人數不得超出住宅容量。
+6. **結果重播：** 相同 Seed、指令與參數必須得到相同狀態。
 
-### UI and performance tests
+### 12.3 UI 與效能測試
 
-- Desktop mouse and mobile touch gestures.
-- Camera limits and no accidental paint while panning.
-- Visual selection corresponds to underlying tiles at all zoom levels.
-- Browser reload restores valid state.
-- FPS and memory profiling on at least one real iOS and Android device if available.
-- Smoke test Vercel preview on each milestone.
+- 桌面滑鼠、手機觸控及不同縮放倍率的選取精度。
+- 相機平移與分區繪製不互相誤觸。
+- 地塊視覺位置與 Simulation 座標一致。
+- 重新整理頁面後可載入合法存檔。
+- 至少在可取得的實體 iOS／Android 裝置上測試。
+- 每個里程碑執行 Vercel Preview Smoke Test。
 
-## 13. Risks and mitigations
+## 十三、主要風險與緩解方式
 
-| Risk | Impact | Mitigation |
+| 風險 | 影響 | 緩解策略 |
 | --- | --- | --- |
-| Low-poly assets consume excessive production time | High | Start with procedural primitives and a tiny consistent palette |
-| 3D mobile rendering overhead | High | Instancing, culling, simple materials, measured device gates |
-| Zoning/parcel complexity | High | Start with simple rectangular parcels; test spatial invariants |
-| Economy exploits / runaway growth | High | Bounded flows, explicit costs, seeded scenario regression |
-| Road auto-generation overlaps footprints | Medium | Generate roads from parcel templates and validate geometry |
-| Player cannot understand why buildings appear | High | Show demand indicators and development event reasons |
-| Scope creep into tourism/agriculture/elections | High | Enforce Phase 1 exclusions; defer through issue backlog |
-| Framework/backend premature commitment | Medium | Pure simulation boundary and browser-first deployment |
+| Low-poly 美術產能不足 | 高 | 先用幾何 Primitive 與一致色盤 |
+| 手機 GPU 效能不足 | 高 | Instancing、裁切、簡單材質、實機量測 |
+| Parcel／分區規則過度複雜 | 高 | 先支援簡單矩形地塊，建立空間 Invariant |
+| 經濟暴衝或可被無限套利 | 高 | 限制流量、明確成本、Seeded 情境回歸 |
+| 自動道路與建築碰撞 | 中 | 以 Parcel 模板生成並驗證幾何 |
+| 玩家不懂建築為何出現 | 高 | 顯示需求指數與開發事件原因 |
+| 提早加入觀光、選舉、農產合約 | 高 | 嚴格遵守 Phase 1 排除範圍 |
+| 太早決定後端／框架 | 中 | 維持純模擬核心與 Browser-first 部署 |
 
-## 14. Definition of done
+## 十四、Phase 1 完成定義（Definition of Done）
 
-Phase 1 is accepted when:
+必須全部達成：
 
-1. A 64×64 low-poly village loads in a desktop and mobile browser.
-2. The player can pan/zoom, select land, zone agriculture/residential/commercial, and place at least one special building.
-3. Every zoning operation previews cost and respects budget, terrain and occupied-land constraints.
-4. Roads appear automatically as part of development; no manual road tool exists.
-5. Private buildings develop over time based on observable demand rather than direct player placement.
-6. Population can move in/out while respecting housing capacity.
-7. Treasury changes through explicit costs, recurring expenses and at least agricultural/commercial public revenue proxies.
-8. Different zoning strategies produce meaningfully different trajectories under identical initial conditions.
-9. Save/load and seeded scenario tests pass.
-10. A real mobile-device performance report is attached to the milestone review.
+1. 桌面與手機瀏覽器能載入 64×64 的 Low-poly 3D 村莊。
+2. 玩家可平移、縮放、選地、規劃農業／住宅／商業區，並放置至少一種特殊建築。
+3. 每次分區操作可預覽費用，且遵守財務、地形與佔地限制。
+4. 道路隨分區／建築自動生成，沒有手動鋪路工具。
+5. 私人建築隨時間與需求自主發展，不需玩家逐棟建造。
+6. 人口可以遷入／遷出，且不超出住宅容量。
+7. 財政依分區、維護、農業與商業公共收入指標變化，收支可追蹤。
+8. 在相同初始條件下，不同分區策略產生可觀察的不同發展結果。
+9. 存檔／讀檔、固定 Seed 情境測試與主要 Invariant 測試通過。
+10. 提供實際手機裝置的效能量測紀錄。
 
-**Not required for acceptance:** realistic crop contracts, tourist simulation, elections, full land markets, multiplayer or cloud backend.
+**不列入驗收：** 選舉、觀光、詳細農產合約、土地市場、多人連線、雲端後端。
 
-## 15. Phase 2+ roadmap (non-binding)
+## 十五、Phase 2 以後的方向（非承諾排程）
 
-- Agriculture depth: multiple crops, growth time, farm household decisions, spot price and wholesale supply decay.
-- Guaranteed procurement contracts, inventory, spoilage, processing and financial credit.
-- Public/private land ownership, rent and property transactions.
-- Tourism, heritage, cultural landmarks and environmental effects.
-- Governance, stakeholder satisfaction, reelection and endgame.
-- More advanced market competition and optional server-backed features.
+- **農業深化：** 多種作物、生長期、農戶自主決策、盤商價格與超額供給衰減。
+- **農會經營：** 保證收購合約、庫存、腐敗、加工與信用風險。
+- **土地經濟：** 公私所有權、租金、買賣與用途轉換補償。
+- **觀光與文化：** 觀光吸引力、文化設施、景觀與保存機制。
+- **治理：** 利益群體滿意度、定期選舉與失敗結局。
+- **平台擴充：** 雲端存檔、帳號、必要時的伺服器權威模擬。
 
-Sequence these only after Phase 1 playtests demonstrate that zoning, autonomous growth and fiscal trade-offs are fun.
+Phase 2 的優先順序應依 Phase 1 實際遊玩測試決定，不能僅因功能已被討論就全部排入開發。
 
-## 16. Review checklist / open questions
+## 十六、PR Review 待確認項目
 
-- [ ] Approve Three.js as initial rendering engine after M1 performance spike.
-- [ ] Approve the first-pass map elevation and parcel footprint constraints.
-- [ ] Confirm monthly economic tick and initial speed controls.
-- [ ] Choose a minimal special building for the first hybrid-construction test.
-- [ ] Define baseline starting treasury and zoning prices **through balancing tests**, not arbitrary permanent values.
-- [ ] Choose target mobile devices and record actual FPS/interaction data.
-- [ ] Decide whether initial scenario starts with a small existing village (recommended) or empty map.
+- [ ] M1 實測後確認 Three.js 是否作為正式 Rendering Engine。
+- [ ] 確認初始地形高度差、Parcel 形狀與建築佔地限制。
+- [ ] 確認每月結算及暫停／倍速控制。
+- [ ] 選定第一種直接建造的特殊建築。
+- [ ] 透過平衡測試設定初始財政與分區費率。
+- [ ] 選定實際測試的手機與瀏覽器。
+- [ ] 決定開局已有少量農戶與農田，或完全空白地圖。
 
-**Design rule:** This document distinguishes confirmed product decisions from proposed engineering defaults. Approval of this PR approves the Phase 1 plan for implementation; it does not silently finalize every open question.
+**審核原則：** 本 PR 確認的是 Phase 1 開發方向與範圍，不代表自動核准所有尚待測試的技術選擇或經濟參數。
