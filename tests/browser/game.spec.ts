@@ -65,6 +65,7 @@ test("HQ, rectangular farm, first immigrants, reload and second tab lease", asyn
     other.getByRole("button", { name: "農業", exact: true }),
   ).toBeDisabled();
   await other.close();
+  await page.getByRole("button", { name: "開啟選單", exact: true }).click();
   await page.getByRole("button", { name: "重新開始", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("button", { name: "繼續確認" }).click();

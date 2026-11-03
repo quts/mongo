@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Bounds, GameState } from "../simulation/types";
 import { boundsBetween } from "../simulation/core";
+import { Landscape, roofGeometry, meadowMaterial } from "./landscape";
 export type Tool =
   "hq" | "agriculture" | "residential" | "commercial" | "select" | "pan";
 const colors = {
@@ -12,6 +13,10 @@ const colors = {
 export class Island {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
+  private landscape?: Landscape;
+  private scenerySignature = "";
+  private gridLines?: THREE.LineSegments;
+  private gridVisible = false;
   private camera = new THREE.OrthographicCamera(-40, 40, 30, -30, 0.1, 250);
   private controls: OrbitControls;
   private land: THREE.InstancedMesh;
@@ -39,7 +44,7 @@ export class Island {
   ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
-    this.renderer.setClearColor(0xb7d9d6);
+    this.renderer.setClearColor(0x80c7df);
     host.append(this.renderer.domElement);
     this.camera.position.set(83, 85, 100);
     this.camera.lookAt(32, 0, 32);
@@ -54,22 +59,23 @@ export class Island {
     this.controls.addEventListener("change", () => {
       this.needsRender = true;
     });
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x6d8568, 2.4));
-    const sun = new THREE.DirectionalLight(0xffedc6, 2.5);
+    this.scene.add(new THREE.HemisphereLight(0xf5f8ff, 0xb4ac87, 1.8));
+    const sun = new THREE.DirectionalLight(0xffefd8, 2.0);
     sun.position.set(25, 65, 10);
     this.scene.add(sun);
     const sea = new THREE.Mesh(
       new THREE.PlaneGeometry(220, 220),
-      new THREE.MeshLambertMaterial({ color: 0x86bcbf }),
+      new THREE.MeshBasicMaterial({ color: 0x80c7df }),
     );
     sea.rotation.x = -Math.PI / 2;
     sea.position.set(32, -0.4, 32);
     this.scene.add(sea);
     this.land = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(0.98, 0.6, 0.98),
-      new THREE.MeshLambertMaterial(),
+      new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+      meadowMaterial(),
       4096,
     );
+    this.land.frustumCulled = false;
     this.scene.add(this.land, this.objects);
     this.selection = new THREE.Mesh(
       new THREE.BoxGeometry(1, 0.1, 1),
@@ -79,6 +85,12 @@ export class Island {
         opacity: 0.5,
         depthTest: false,
       }),
+    );
+    this.selection.add(
+      new THREE.LineSegments(
+        new THREE.EdgesGeometry(this.selection.geometry),
+        new THREE.LineBasicMaterial({ color: 0x749f42, depthTest: false }),
+      ),
     );
     this.selection.visible = false;
     this.selection.renderOrder = 10;
@@ -94,10 +106,12 @@ export class Island {
       const { width, height } = host.getBoundingClientRect();
       this.renderer.setSize(width, height);
       const aspect = width / height;
-      this.camera.left = -32 * aspect;
-      this.camera.right = 32 * aspect;
-      this.camera.top = 32;
-      this.camera.bottom = -32;
+      const halfHeight =
+        height < 600 && aspect > 1.4 ? 15 : width < 700 ? 25 : 26;
+      this.camera.left = -halfHeight * aspect;
+      this.camera.right = halfHeight * aspect;
+      this.camera.top = halfHeight;
+      this.camera.bottom = -halfHeight;
       this.camera.updateProjectionMatrix();
       this.needsRender = true;
     });
@@ -118,6 +132,19 @@ export class Island {
     this.start = undefined;
     this.controls.enabled = tool === "pan";
     this.host.style.cursor = tool === "pan" ? "grab" : "crosshair";
+  }
+  resetView() {
+    this.controls.target.set(32, 0, 32);
+    this.camera.position.set(83, 85, 100);
+    this.camera.zoom = 1;
+    this.controls.update();
+    this.camera.updateProjectionMatrix();
+    this.needsRender = true;
+  }
+  setGridVisible(visible: boolean) {
+    this.gridVisible = visible;
+    if (this.gridLines) this.gridLines.visible = visible;
+    this.needsRender = true;
   }
   zoom(factor: number) {
     this.camera.zoom = THREE.MathUtils.clamp(this.camera.zoom * factor, 0.7, 5);
@@ -201,7 +228,7 @@ export class Island {
     this.selection.position.set(bounds.minX + w / 2, 0.8, bounds.minY + h / 2);
     this.selection.scale.set(w, 1, h);
     (this.selection.material as THREE.MeshBasicMaterial).color.setHex(
-      valid ? 0xf8ffe1 : 0xef6666,
+      valid ? 0xa8d76c : 0xef9990,
     );
   }
   project(s: GameState) {
@@ -214,6 +241,54 @@ export class Island {
     if (signature === this.signature) return;
     this.signature = signature;
     this.needsRender = true;
+    if (!this.landscape) {
+      this.landscape = new Landscape(s.tiles);
+      this.scene.add(this.landscape.group);
+      const vertices: number[] = [];
+      s.tiles.forEach((tile, i) => {
+        if (!tile.land) return;
+        const x = i % 64,
+          z = Math.floor(i / 64);
+        vertices.push(
+          x,
+          0.315,
+          z,
+          x + 1,
+          0.315,
+          z,
+          x,
+          0.315,
+          z,
+          x,
+          0.315,
+          z + 1,
+        );
+      });
+      this.gridLines = new THREE.LineSegments(
+        new THREE.BufferGeometry().setAttribute(
+          "position",
+          new THREE.Float32BufferAttribute(vertices, 3),
+        ),
+        new THREE.LineBasicMaterial({
+          color: 0x665d40,
+          transparent: true,
+          opacity: 0.18,
+          depthWrite: false,
+        }),
+      );
+      this.gridLines.visible = this.gridVisible;
+      this.scene.add(this.gridLines);
+    }
+    const scenerySignature = JSON.stringify([
+      s.gameId,
+      s.roadRevision,
+      Object.values(s.parcels).map((p) => p.bounds),
+      Object.values(s.buildings).map((b) => b.footprint),
+    ]);
+    if (scenerySignature !== this.scenerySignature) {
+      this.scenerySignature = scenerySignature;
+      this.landscape.update(s.tiles);
+    }
     const tileSignature = JSON.stringify([
       s.gameId,
       s.roadRevision,
@@ -226,7 +301,7 @@ export class Island {
       s.tiles.forEach((tile, i) => {
         matrix.makeTranslation(
           (i % 64) + 0.5,
-          tile.land ? 0 : -2,
+          tile.land ? 0.3 : -2,
           Math.floor(i / 64) + 0.5,
         );
         this.land.setMatrixAt(i, matrix);
@@ -236,9 +311,11 @@ export class Island {
             ? 0xe4d6b6
             : p
               ? colors[p.zone]
-              : (i + Math.floor(i / 64)) % 3 === 0
-                ? 0x97b97b
-                : 0x9fbf82,
+              : tile.coastDistance <= 1
+                ? 0xdac08d
+                : tile.coastDistance <= 2
+                  ? 0xa7b677
+                  : 0x86a85e,
         );
         this.land.setColorAt(i, color);
       });
@@ -279,7 +356,7 @@ export class Island {
       group.add(body);
       if (b.active) {
         const roof = new THREE.Mesh(
-          this.geometry("roof", () => new THREE.ConeGeometry(1.4, 0.8, 4)),
+          this.geometry("roof", roofGeometry),
           this.material(
             b.definitionId === "hq"
               ? 0x526f7b
@@ -288,9 +365,54 @@ export class Island {
                 : 0x617d73,
           ),
         );
-        roof.rotation.y = Math.PI / 4;
-        roof.position.set(x, 0.3 + h + 0.4, z);
+        roof.rotation.y = 0;
+        roof.position.set(x, 0.3 + h, z);
         group.add(roof);
+      }
+      if (b.active) {
+        const door = new THREE.Mesh(
+          this.geometry("door", () => new THREE.BoxGeometry(0.38, 0.65, 0.06)),
+          this.material(0x9c7951),
+        );
+        door.position.set(x, 0.64, z + 0.85);
+        group.add(door);
+        for (const dx of [-0.53, 0.53]) {
+          const frame = new THREE.Mesh(
+            this.geometry(
+              "window-frame",
+              () => new THREE.BoxGeometry(0.36, 0.38, 0.06),
+            ),
+            this.material(0xfff1d2),
+          );
+          frame.position.set(x + dx, 0.3 + h * 0.64, z + 0.85);
+          group.add(frame);
+          const glass = new THREE.Mesh(
+            this.geometry(
+              "window-glass",
+              () => new THREE.BoxGeometry(0.26, 0.25, 0.03),
+            ),
+            this.material(0x91b6c1),
+          );
+          glass.position.set(x + dx, 0.3 + h * 0.64, z + 0.9);
+          group.add(glass);
+        }
+        if (b.definitionId === "hq") {
+          const pole = new THREE.Mesh(
+            this.geometry(
+              "flagpole",
+              () => new THREE.CylinderGeometry(0.03, 0.03, 0.9, 5),
+            ),
+            this.material(0x8d7859),
+          );
+          pole.position.set(x, 0.3 + h + 0.98, z);
+          group.add(pole);
+          const flag = new THREE.Mesh(
+            this.geometry("flag", () => new THREE.BoxGeometry(0.4, 0.23, 0.04)),
+            this.material(0xd88c76),
+          );
+          flag.position.set(x + 0.2, 0.3 + h + 1.28, z);
+          group.add(flag);
+        }
       }
       for (let n = 0; n < b.residents; n++) {
         const resident = new THREE.Mesh(
@@ -322,7 +444,7 @@ export class Island {
     const geometries = new Set(this.geometries.values());
     const materials = new Set<THREE.Material>(this.materials.values());
     object.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
+      if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments) {
         geometries.add(child.geometry);
         for (const material of Array.isArray(child.material)
           ? child.material
@@ -346,6 +468,13 @@ export class Island {
     canvas.removeEventListener("pointerup", this.up);
     canvas.removeEventListener("pointercancel", this.cancel);
     canvas.removeEventListener("wheel", this.wheel);
+    this.landscape?.dispose();
+    if (this.landscape) this.scene.remove(this.landscape.group);
+    if (this.gridLines) {
+      this.gridLines.geometry.dispose();
+      (this.gridLines.material as THREE.Material).dispose();
+      this.scene.remove(this.gridLines);
+    }
     this.disposeObject(this.scene);
     this.renderer.dispose();
     canvas.remove();

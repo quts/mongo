@@ -14,7 +14,7 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
       - name: Build runtime container
         run: docker build --target runtime -t mongo:ci .
@@ -23,7 +23,7 @@ jobs:
       - name: Check runtime health
         run: curl --fail --retry 20 --retry-all-errors --retry-delay 1 http://127.0.0.1:8080/healthz
       - name: Verify production bundle in browser
-        run: npx playwright test --grep 'HQ, rectangular farm|insecure HTTP|startup failure'
+        run: npx playwright test --grep 'HQ, rectangular farm|insecure HTTP|startup failure|cozy planning HUD|planning selection'
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:8080
       - name: Stop runtime container

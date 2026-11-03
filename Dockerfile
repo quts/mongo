@@ -10,7 +10,7 @@ EXPOSE 5173
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 FROM dependencies AS validation
-RUN npx playwright install --with-deps chromium
+RUN npx playwright install --with-deps chromium webkit
 COPY . .
 ENV CI=true
 CMD ["sh", "-c", "npm run typecheck && npm run lint && npm test && npm run build && npm run test:e2e"]

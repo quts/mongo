@@ -29,5 +29,41 @@ export default defineConfig({
         hasTouch: true,
       },
     },
+    {
+      name: "webkit-phone",
+      testMatch: "**/ui.spec.ts",
+      use: {
+        browserName: "webkit",
+        deviceScaleFactor: 3,
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        launchOptions: { args: [] },
+      },
+    },
+    {
+      name: "webkit-landscape",
+      testMatch: "**/ui.spec.ts",
+      use: {
+        browserName: "webkit",
+        deviceScaleFactor: 3,
+        viewport: { width: 844, height: 390 },
+        isMobile: true,
+        hasTouch: true,
+        launchOptions: { args: [] },
+      },
+    },
+    {
+      name: "webkit-tablet",
+      testMatch: "**/ui.spec.ts",
+      use: {
+        browserName: "webkit",
+        deviceScaleFactor: 2,
+        viewport: { width: 1024, height: 768 },
+        isMobile: true,
+        hasTouch: true,
+        launchOptions: { args: [] },
+      },
+    },
   ],
 });

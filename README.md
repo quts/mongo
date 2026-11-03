@@ -12,7 +12,7 @@ container build --platform linux/arm64 --cpus 4 --memory 4G --target validation 
 container run --rm --name mongo-validation --cpus 4 --memory 4G --shm-size 1G mongo:validation
 ```
 
-`validation` 在 Linux ARM64 內依序執行 TypeScript、Lint、單元／Runtime 測試、production build 及完整 Chromium 情境。依賴和 Chromium 都留在映像內，不掛載 macOS 的 `node_modules`。測試映像與靜態網站執行映像分開。
+`validation` 在 Linux ARM64 內依序執行 TypeScript、Lint、單元／Runtime 測試、production build 及完整 Chromium／WebKit 情境。依賴和瀏覽器都留在映像內，不掛載 macOS 的 `node_modules`。測試映像與靜態網站執行映像分開。
 
 ```sh
 container build --platform linux/arm64 --cpus 4 --memory 4G --target runtime -t mongo:runtime .
@@ -25,7 +25,7 @@ curl --fail http://127.0.0.1:18080/healthz
 若本機有 Node／Playwright，可針對實際 production bundle 執行桌面／手機尺寸 Golden Scenario：
 
 ```sh
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:18080 npx playwright test --grep 'HQ, rectangular farm|insecure HTTP|startup failure'
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:18080 npx playwright test --grep 'HQ, rectangular farm|insecure HTTP|startup failure|cozy planning HUD|planning selection'
 container stop mongo-preview
 ```
 
@@ -65,8 +65,8 @@ npm run dev
 3. 下一 Tick 開工，自動產生公共農路；再下一 Tick 完工並迎來島民。1× 每分鐘一 Tick，可用 2×／4× 加速。
 4. 「檢視分區」可選取地塊；只有未開工地塊可取消或變更用途。退款為原實付的 80%，改用途顯示淨費用。
 5. 「平移／縮放」以拖曳、雙指操作鏡頭；滾輪與右下角按鈕可縮放。
-6. 自動保存單一本機存檔。暫停後關閉不補算；否則重啟以 1× 補算最多 72 小時。重新開始需要兩次確認。
-7. 介面會顯示最後成功存檔的 Tick／版本；寫入失敗時停止模擬與操作，明確提示未儲存進度。重新載入只會還原上次成功存檔；若首次存檔失敗，當前進度無法保留。
+6. 右上角選單可查看存檔狀態、操作指南及重新開始。自動保存單一本機存檔。暫停後關閉不補算；否則重啟以 1× 補算最多 72 小時。重新開始需要兩次確認。
+7. 選單會顯示最後成功存檔的 Tick／版本；寫入失敗時停止模擬與操作，明確提示未儲存進度。重新載入只會還原上次成功存檔；若首次存檔失敗，當前進度無法保留。
 
 需要支援 WebGL、IndexedDB、Web Locks 的安全來源（HTTPS 或 localhost）。第二分頁與無 Web Locks 瀏覽器唯讀；無法讀取／驗證存檔或寫入失敗會停止寫入並保留資料。此 Slice 無匯出／雲端備份，請勿任意清除網站資料。
 
@@ -77,11 +77,11 @@ npm run typecheck
 npm run lint
 npm test
 npm run build
-npx playwright install chromium
+npx playwright install chromium webkit
 npm run test:e2e
 ```
 
-CI 執行以上檢查與桌面／手機尺寸 Chromium 情境。瀏覽器測試會快轉固定時鐘，涵蓋 HQ、框選農地、完工移民、暫停重載、多分頁與重新開始。單元測試涵蓋財政原子性、道路、施工／容量、月界、4320 Tick 逐 Tick 重播、存檔驗證與 CAS。
+CI 執行以上檢查與桌面／手機尺寸 Chromium，以及 WebKit 手機直向／橫向／平板 UI 情境。瀏覽器測試會快轉固定時鐘，涵蓋 HQ、框選農地、完工移民、暫停重載、多分頁與重新開始。單元測試涵蓋財政原子性、道路、施工／容量、月界、4320 Tick 逐 Tick 重播、存檔驗證與 CAS。
 
 ## 架構與決策
 
@@ -103,7 +103,7 @@ CI 執行以上檢查與桌面／手機尺寸 Chromium 情境。瀏覽器測試�
 ## 交付限制
 
 - 本版是規劃模式 Slice；探索／tland 控制移植、商業操作 UI、完整需求與財政平衡、建築退出、人口遷出仍屬後續 Phase 1。
-- 只有 Primitive 美術，無正式島嶼輪廓；居民以建築旁的簡單標記呈現，不模擬個體 AI。
+- 規劃介面採奶油色面板、圓體字與原創 SVG 圖示；場景使用程序幾何樹木、花叢、草地與建築，尚非概念圖的完整插畫美術，無正式島嶼輪廓；居民以建築旁的簡單標記呈現，不模擬個體 AI。
 - 手機尺寸瀏覽器測試不等同實體 iOS／Android 效能驗收；實機、Vercel Preview 與長期經濟平衡仍須另驗證。
 - 依賴鎖定於 `package-lock.json`；Lint 工具鏈的 minimatch 覆寫至 11.x 修補版本，型別、Lint、建置與測試需共同驗證相容性。
 
@@ -125,3 +125,11 @@ CI 執行以上檢查與桌面／手機尺寸 Chromium 情境。瀏覽器測試�
 手機與 Mac 在同一 WiFi 時，可另將 runtime 綁定 Mac 的區網 IP；例如 `--publish 192.168.50.239:18080:8080`，請依實際 IP 調整。HTTP 下可以顯示島嶼並平移／縮放，但依 SDD 保持唯讀，不開啟存檔或取得 Writer Lease；建造與存檔需要可信任 HTTPS。`crypto.randomUUID` 不在 HTTP 使用，ID 改由可在此環境使用的 `crypto.getRandomValues` 產生；初始化失敗時顯示錯誤，避免只留下空白背景。
 
 非安全來源回歸使用真正的 `isSecureContext=false` HTTP origin，確認沒有 `randomUUID` 時仍能啟動；不是只在 localhost 隱藏 Web Locks。production 首頁使用 `Cache-Control: no-cache`，雜湊資產維持 immutable，以便手機重新載入新版本。
+
+## 規劃 UI 視覺修正（2026-11-04）
+
+依使用者提供的概念圖與本機 tland 實作對齊：奶油色面板、咖啡色描邊、Huninn 圓體、頂部資源膠囊、左側圓形地圖工具、底部建設／分區圖示卡，以及操作時才出現的選址卡。移除常駐側欄，存檔資訊、說明與重新開始收進選單；支援手機直向、橫向、安全區與平板。
+
+草地、海岸、樹木、花叢及屋頂只屬渲染投影，不新增占用或更動 Core／存檔規則。UI 數值取自真實模擬狀態；沒有加入尚未實作的探索、滿意度或背包功能。
+
+[實際 production 截圖與參考範圍](docs/visual/planning-ui/README.md)：[桌面](docs/visual/planning-ui/desktop.png)、[手機](docs/visual/planning-ui/phone.png)、[橫向選址](docs/visual/planning-ui/landscape.png)、[平板](docs/visual/planning-ui/tablet.png)。字型授權見 [ASSET_LICENSES.md](ASSET_LICENSES.md)。瀏覽器回歸額外檢查字型載入、工具列範圍、選址卡不重疊、格線、選單及 WebGL shader 錯誤。
