@@ -104,3 +104,159 @@ test("unsupported Web Locks stays read-only and never initializes storage", asyn
   );
   expect(saved).toBeNull();
 });
+
+test("save failure exposes durable progress and reload restores it", async ({
+  page,
+}, info) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: "村委會大樓", exact: true }),
+  ).toBeEnabled();
+  const mobile = info.project.name === "mobile",
+    box = (await page.locator("canvas").boundingBox())!;
+  await page.mouse.click(
+    box.width * (mobile ? 0.7 : 0.55),
+    box.height * (mobile ? 0.56 : 0.48),
+  );
+  await page.getByRole("button", { name: "確認放置" }).click();
+  const storage = page.getByTestId("storage-status");
+  await expect(storage).toContainText("進度已儲存");
+  const durable = await storage.textContent();
+  await page.evaluate(() => {
+    const original = IDBDatabase.prototype.transaction;
+    IDBDatabase.prototype.transaction = function (stores, mode, options) {
+      const tx = original.call(this, stores, mode, options);
+      if (mode === "readwrite") queueMicrotask(() => tx.abort());
+      return tx;
+    };
+  });
+  await page.getByRole("button", { name: "暫停", exact: true }).click();
+  await expect(page.getByText(/已停止寫入與模擬/)).toBeVisible();
+  await expect(storage).toContainText("畫面含未儲存進度");
+  await expect(storage).toContainText("重新載入會回到上次存檔");
+  expect(await storage.textContent()).toContain(
+    durable!.replace("進度已儲存。", ""),
+  );
+  await expect(
+    page.getByRole("button", { name: "農業", exact: true }),
+  ).toBeDisabled();
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "暫停", exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByTestId("storage-status")).toContainText("進度已儲存");
+});
+
+test("72h catch-up yields to browser event loop under 4x CPU throttling", async ({
+  page,
+  context,
+}, info) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: "村委會大樓", exact: true }),
+  ).toBeEnabled();
+  await page.evaluate(async () => {
+    const path = "/src/simulation/core.ts";
+    const { Core, createState } = await import(path);
+    const c = new Core(createState("browser-catchup"));
+    c.command({
+      id: "hq",
+      type: "placeHQ",
+      bounds: { minX: 25, minY: 25, maxXExclusive: 27, maxYExclusive: 27 },
+      timestamp: Date.now() - 100 * 3600000,
+    });
+    for (let y = 16; y <= 40; y += 4)
+      for (let x = 20; x <= 40; x += 4)
+        c.command({
+          id: `parcel-${x}-${y}`,
+          type: "zone",
+          zone: x % 8 === 0 ? "residential" : "agriculture",
+          bounds: {
+            minX: x,
+            minY: y,
+            maxXExclusive: x + (y % 8 === 0 ? 1 : 2),
+            maxYExclusive: y + 2,
+          },
+        });
+    await new Promise<void>((resolve, reject) => {
+      const r = indexedDB.open("mongo-v1", 1);
+      r.onsuccess = () => {
+        const db = r.result,
+          tx = db.transaction("checkpoint", "readwrite");
+        tx.objectStore("checkpoint").put(c.getSnapshot(), "single");
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        tx.onabort = () => reject(tx.error);
+      };
+    });
+  });
+  await page.addInitScript(() => {
+    let beats = 0,
+      last = 0,
+      maxGap = 0,
+      start = 0,
+      totalMs = 0,
+      active = false,
+      finished = false;
+    new MutationObserver(() => {
+      const running =
+        document.body?.textContent?.includes("正在補算離線進度") ?? false;
+      if (running && !active && !finished) {
+        active = true;
+        start = last = performance.now();
+      }
+      if (active && !running) {
+        const now = performance.now();
+        maxGap = Math.max(maxGap, now - last);
+        totalMs = now - start;
+        active = false;
+        finished = true;
+      }
+    }).observe(document, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+    setInterval(() => {
+      if (!active) return;
+      const now = performance.now();
+      maxGap = Math.max(maxGap, now - last);
+      last = now;
+      beats++;
+    }, 5);
+    Object.defineProperty(window, "testCatchUpMetrics", {
+      get: () => ({ beats, maxGap, totalMs, finished }),
+    });
+  });
+  const session = await context.newCDPSession(page);
+  await session.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByText(/正在補算離線進度/)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "農業", exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByTestId("tick")).toContainText("Tick 4320", {
+    timeout: 30000,
+  });
+  await expect(
+    page.getByRole("button", { name: "農業", exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByTestId("storage-status")).toContainText("進度已儲存");
+  const metrics = await page.evaluate(() =>
+    Reflect.get(window, "testCatchUpMetrics"),
+  );
+  expect(metrics.finished).toBe(true);
+  expect(metrics.beats).toBeGreaterThan(100);
+  expect(metrics.maxGap).toBeLessThan(500);
+  console.info(
+    JSON.stringify({
+      benchmark: "chromium-72h-mixed-4x",
+      project: info.project.name,
+      ...metrics,
+    }),
+  );
+  await session.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+  await session.detach();
+});

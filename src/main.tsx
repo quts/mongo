@@ -15,7 +15,8 @@ const errors: Record<string, string> = {
   NO_BUILDING_FOOTPRINT: "合法，但面積不足以容納建築",
   NO_ROAD_ACCESS: "合法，但目前沒有可用的道路接觸點",
   CONSTRUCTION_LOCKED: "開工後不可取消或變更用途",
-  READ_ONLY: "目前為唯讀",
+  READ_ONLY: "目前無法操作，請確認唯讀或補算狀態",
+  RUNTIME_BUSY: "正在補算經過時間，完成後請重試操作",
   PARCEL_NOT_FOUND: "請先選取一塊分區",
 };
 function App() {
@@ -250,6 +251,7 @@ function App() {
         )}
         <div className="notice" role="status">
           {runtime.status}
+          <p data-testid="storage-status">{runtime.storageStatus}</p>
           {message && <p>{message}</p>}
         </div>
       </aside>

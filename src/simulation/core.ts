@@ -63,6 +63,7 @@ export class Core {
   private listeners = new Set<() => void>();
   private eventListeners = new Set<(events: readonly DomainEvent[]) => void>();
   private publishing = false;
+  private advancing = false;
   private pending: DomainEvent[] = [];
   constructor(
     state: GameState,
@@ -272,7 +273,8 @@ export class Core {
     }
   }
   command(cmd: Command): Result {
-    if (this.publishing) return { ok: false, code: "REENTRANT_COMMAND" };
+    if (this.publishing || this.advancing)
+      return { ok: false, code: "REENTRANT_COMMAND" };
     if (!cmd.id) return { ok: false, code: "INVALID_COMMAND_ID" };
     if (this.state.commandIds.includes(cmd.id)) return { ok: true };
     const next = structuredClone(this.state);
@@ -301,6 +303,10 @@ export class Core {
     return result;
   }
   advanceOneTick(): boolean {
+    if (this.advancing) return false;
+    return this.runTick();
+  }
+  private runTick(): boolean {
     if (this.publishing || !this.state.started || this.state.scheduler.paused)
       return false;
     const s = this.state,
@@ -427,17 +433,13 @@ export class Core {
     this.publish(events);
     return true;
   }
-  elapse(now: number, offline = false): number {
-    if (this.publishing || !Number.isFinite(now) || now < 0) return 0;
+  // Wall-clock bookkeeping stays private until a Tick, Command or explicit checkpoint.
+  private planElapsed(now: number, offline: boolean): number {
     const s = this.state,
       sch = s.scheduler;
     const elapsed = Math.max(0, now - sch.lastWallClockTimestamp);
     sch.lastWallClockTimestamp = Math.max(now, sch.lastWallClockTimestamp);
-    if (!s.started || sch.paused) {
-      s.stateRevision++;
-      this.publish();
-      return 0;
-    }
+    if (!s.started || sch.paused) return 0;
     const budget = offline ? Math.min(elapsed, 72 * 3600000) : elapsed;
     const total = sch.accumulatedMs + budget * (offline ? 1 : sch.speed);
     const ticks = Math.min(
@@ -445,12 +447,61 @@ export class Core {
       Math.floor(total / 60000),
     );
     sch.accumulatedMs = total % 60000;
-    for (let i = 0; i < ticks; i++) this.advanceOneTick();
-    if (!ticks) {
-      s.stateRevision++;
-      this.publish();
-    }
     return ticks;
+  }
+  commitClock(): void {
+    if (
+      this.publishing ||
+      this.advancing ||
+      !this.state.started ||
+      this.state.scheduler.paused
+    )
+      return;
+    const current = this.state.scheduler,
+      previous = this.snapshot.scheduler;
+    if (
+      current.lastWallClockTimestamp === previous.lastWallClockTimestamp &&
+      current.accumulatedMs === previous.accumulatedMs
+    )
+      return;
+    this.state.stateRevision++;
+    this.publish();
+  }
+  elapse(now: number, offline = false): number {
+    if (this.publishing || this.advancing || !Number.isFinite(now) || now < 0)
+      return 0;
+    const ticks = this.planElapsed(now, offline);
+    for (let i = 0; i < ticks; i++) this.advanceOneTick();
+    return ticks;
+  }
+  async elapseBatched(
+    now: number,
+    offline: boolean,
+    options: {
+      yieldControl: () => Promise<void>;
+      cancelled?: () => boolean;
+      onProgress?: (completed: number, total: number) => void;
+    },
+  ): Promise<number> {
+    if (this.publishing || this.advancing || !Number.isFinite(now) || now < 0)
+      return 0;
+    this.advancing = true;
+    try {
+      const ticks = this.planElapsed(now, offline);
+      for (let completed = 0; completed < ticks;) {
+        if (options.cancelled?.()) throw Error("CATCH_UP_CANCELLED");
+        const end = Math.min(completed + 8, ticks);
+        while (completed < end) {
+          this.runTick();
+          completed++;
+        }
+        options.onProgress?.(completed, ticks);
+        if (completed < ticks) await options.yieldControl();
+      }
+      return ticks;
+    } finally {
+      this.advancing = false;
+    }
   }
 }
 export function boundsBetween(a: number, b: number): Bounds {
