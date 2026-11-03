@@ -225,3 +225,14 @@ it("does not overlap scheduler pumps while a slow heartbeat checkpoint is in fli
   expect(pump).toHaveBeenCalledTimes(1);
   await r.stop();
 });
+
+it("LAN HTTP preview never opens storage or acquires a writer lease", async () => {
+  vi.stubGlobal("isSecureContext", false);
+  const open = vi.spyOn(persistence, "openDatabase");
+  const r = new Runtime();
+  await r.start();
+  expect(r.writable).toBe(false);
+  expect(r.status).toContain("區網 HTTP 畫面預覽");
+  expect(open).not.toHaveBeenCalled();
+  await r.stop();
+});

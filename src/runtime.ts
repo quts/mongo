@@ -1,3 +1,4 @@
+import { newId } from "./platform/id";
 import { Core, createState } from "./simulation/core";
 import {
   openDatabase,
@@ -7,7 +8,7 @@ import {
 import type { Command } from "./simulation/types";
 
 export class Runtime {
-  core: Core = new Core(createState(crypto.randomUUID()));
+  core: Core = new Core(createState(newId()));
   status = "正在讀取本機島嶼…";
   lastSaved: { gameId: string; revision: number; tick: number } | null = null;
   private writer = false;
@@ -76,6 +77,12 @@ export class Runtime {
     this.bind();
   }
   async start() {
+    if (globalThis.isSecureContext === false) {
+      this.status =
+        "目前為區網 HTTP 畫面預覽，可平移／縮放；建造與存檔需要 HTTPS。";
+      this.notify();
+      return;
+    }
     this.db = await openDatabase();
     const saved = await readCheckpoint(this.db);
     if (this.dead) return;
@@ -213,7 +220,7 @@ export class Runtime {
   }
   async restart() {
     if (!this.writable) return;
-    const next = createState(crypto.randomUUID());
+    const next = createState(newId());
     next.stateRevision = this.core.getSnapshot().stateRevision + 1;
     this.core = new Core(next);
     this.bind();

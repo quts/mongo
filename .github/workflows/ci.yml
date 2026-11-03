@@ -23,7 +23,7 @@ jobs:
       - name: Check runtime health
         run: curl --fail --retry 20 --retry-all-errors --retry-delay 1 http://127.0.0.1:8080/healthz
       - name: Verify production bundle in browser
-        run: npx playwright test --grep 'HQ, rectangular farm'
+        run: npx playwright test --grep 'HQ, rectangular farm|insecure HTTP|startup failure'
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:8080
       - name: Stop runtime container

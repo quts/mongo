@@ -322,3 +322,50 @@ test("catch-up probe detects deliberately blocking work", async ({ page }) => {
   expect(metrics.longTaskObserverSupported).toBe(true);
   expect(metrics.maxLongTaskMs).toBeGreaterThanOrEqual(600);
 });
+
+test("insecure HTTP renders a read-only island without randomUUID", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await context.route("http://mongo-preview.test/**", async (route) => {
+    const url = new URL(route.request().url());
+    const response = await route.fetch({
+      url: new URL(url.pathname + url.search, baseURL).href,
+    });
+    await route.fulfill({ response });
+  });
+  await page.goto("http://mongo-preview.test/");
+  expect(await page.evaluate(() => isSecureContext)).toBe(false);
+  expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe("undefined");
+  await expect(
+    page.getByRole("heading", { name: "發現新大陸", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator("canvas")).toBeVisible();
+  await expect(page.getByText(/目前為區網 HTTP 畫面預覽/)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "村委會大樓", exact: true }),
+  ).toBeDisabled();
+  const pan = page.getByRole("button", { name: "平移 / 縮放", exact: true });
+  await expect(pan).toBeEnabled();
+  await pan.click();
+  await expect(pan).toHaveAttribute("aria-pressed", "true");
+  expect(errors).toEqual([]);
+});
+
+test("startup failure displays an error instead of a blank page", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(crypto, "getRandomValues", {
+      value: () => {
+        throw Error("ID_RANDOM_UNAVAILABLE");
+      },
+    }),
+  );
+  await page.goto("/");
+  await expect(page.getByRole("alert")).toContainText("遊戲無法啟動");
+  await expect(page.getByRole("alert")).toContainText("ID_RANDOM_UNAVAILABLE");
+});

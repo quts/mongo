@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  Component,
+  useEffect,
+  useRef,
+  useState,
+  type PropsWithChildren,
+} from "react";
+import { newId } from "./platform/id";
 import { createRoot } from "react-dom/client";
 import { Runtime } from "./runtime";
 import { Island, type Tool } from "./rendering/island";
@@ -74,7 +81,7 @@ function App() {
   useEffect(() => {
     scene.current?.setTool(tool);
   }, [tool]);
-  const id = () => crypto.randomUUID();
+  const id = () => newId();
   const candidate: Command | null = bounds
     ? tool === "hq"
       ? { id: "preview", type: "placeHQ", bounds, timestamp: Date.now() }
@@ -159,7 +166,7 @@ function App() {
           ).map((t) => (
             <button
               key={t}
-              disabled={!runtime.writable}
+              disabled={!runtime.writable && t !== "pan"}
               aria-pressed={tool === t}
               onClick={() => switchTool(t as Tool)}
             >
@@ -361,4 +368,29 @@ function App() {
     </main>
   );
 }
-createRoot(document.getElementById("root")!).render(<App />);
+class StartupBoundary extends Component<
+  PropsWithChildren,
+  { error: string | null }
+> {
+  state: { error: string | null } = { error: null };
+  static getDerivedStateFromError(error: unknown) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+  render() {
+    if (this.state.error)
+      return (
+        <section className="panel" role="alert">
+          <h1>遊戲無法啟動</h1>
+          <p>請重新整理；若仍然失敗，請回報下方錯誤。</p>
+          <p>{this.state.error}</p>
+          <button onClick={() => location.reload()}>重新整理</button>
+        </section>
+      );
+    return this.props.children;
+  }
+}
+createRoot(document.getElementById("root")!).render(
+  <StartupBoundary>
+    <App />
+  </StartupBoundary>,
+);

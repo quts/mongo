@@ -25,7 +25,7 @@ curl --fail http://127.0.0.1:18080/healthz
 若本機有 Node／Playwright，可針對實際 production bundle 執行桌面／手機尺寸 Golden Scenario：
 
 ```sh
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:18080 npx playwright test --grep 'HQ, rectangular farm'
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:18080 npx playwright test --grep 'HQ, rectangular farm|insecure HTTP|startup failure'
 container stop mongo-preview
 ```
 
@@ -43,8 +43,8 @@ container run --rm --name mongo-dev --publish 127.0.0.1:5173:5173 --volume "$PWD
 ### 實際驗證紀錄（2026-11-03）
 
 - Apple Container 1.6.0／macOS 26.6.2，兩個容器實測 `uname -m = aarch64`；驗證容器 Node v24.22.2。
-- Linux ARM64／4 vCPU／4 GiB：型別檢查、Lint、57 個單元／Runtime 測試、建置、10 個 Chromium 情境全部通過。
-- ARM64 Nginx runtime：`/healthz` 回傳 200／`ok`；由本機 Chromium 連線該容器提供的 production bundle，桌面／手機尺寸 2 個完整 Golden Scenario 通過。
+- Linux ARM64／4 vCPU／4 GiB：型別檢查、Lint、59 個單元／Runtime 測試、建置、14 個 Chromium 情境全部通過。
+- ARM64 Nginx runtime：`/healthz` 回傳 200／`ok`；由本機 Chromium 連線該容器提供的 production bundle，桌面／手機尺寸 6 個情境（完整 Golden Scenario、HTTP 預覽、啟動錯誤顯示）通過。
 - Linux ARM64 容器內 4× CPU 限速混合場景補算約 6.35／5.84 秒；不等同實體 iOS／Android 效能驗收。
 
 ## 本機開發
@@ -119,3 +119,9 @@ CI 執行以上檢查與桌面／手機尺寸 Chromium 情境。瀏覽器測試�
 - 效能回歸設有完整補算 30 秒、瀏覽器補算期間主執行緒 Long Task 500 ms 的 smoke budget，以及批次最多 8 Tick 的確定性檢查。這是測試環境的回歸門檻，**不是目標手機效能承諾**；上述也不是最大地圖密度量測，實體 iOS／Android 與更高密度場景仍待 profiling。
 
 - 量測修正：共享 CI 的原始計時器間隔曾約 679 ms，卻沒有對應 Long Task；間隔包含瀏覽器／主機排程，不能直接等同 JavaScript 阻塞。回歸門檻以同樣 500 ms 檢查 Long Task duration，仍記錄原始間隔並驗證補算間有至少 100 次心跳。以刻意阻塞 650 ms、跨越補算標記所在 Task 的陽性對照，確認觀測器能偵測真阻塞，且包含與補算區間重疊的長任務；不支援 Long Task 的環境不得靜默通過此 Chromium 測試。
+
+## 區網 HTTP 預覽
+
+手機與 Mac 在同一 WiFi 時，可另將 runtime 綁定 Mac 的區網 IP；例如 `--publish 192.168.50.239:18080:8080`，請依實際 IP 調整。HTTP 下可以顯示島嶼並平移／縮放，但依 SDD 保持唯讀，不開啟存檔或取得 Writer Lease；建造與存檔需要可信任 HTTPS。`crypto.randomUUID` 不在 HTTP 使用，ID 改由可在此環境使用的 `crypto.getRandomValues` 產生；初始化失敗時顯示錯誤，避免只留下空白背景。
+
+非安全來源回歸使用真正的 `isSecureContext=false` HTTP origin，確認沒有 `randomUUID` 時仍能啟動；不是只在 localhost 隱藏 Web Locks。production 首頁使用 `Cache-Control: no-cache`，雜湊資產維持 immutable，以便手機重新載入新版本。
