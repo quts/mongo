@@ -114,12 +114,22 @@
 | Map Initialization | 固定 LandMask、HQ 合法位置與開局起算 | 固定測試地圖；玩家先免費放置 HQ |
 | Parcel Geometry | **Confirmed：** 首個 Vertical Slice 一次框選一個完整軸對齊矩形 Parcel；4-neighbor 連通、禁止重疊、非法整筆拒絕 | **Experimental：** minParcelArea=1 Tile；**Proposed：** 最小長寬／可建面積、UI 警告、正式 Schema 與未來遷移 |
 | Road Planner | **Confirmed：** 最小合法接入既有公共道路；無合法路徑時獨立 Bootstrap；合法 Parcel 邊界接觸；開工原子提交 | **Proposed：** 1-Tile 寬、4-neighbor、BFS 成本／tie-break、Bootstrap 最小長度、錯誤碼 |
-| Building Selection | Zone→Building Type、Footprint、Capacity | 每種 Zone 先一種 Building |
+| Building Selection | **Confirmed：** 首個 Slice 每種 Zone 固定一種 Building，Development Planner 自動合法 Footprint，資料驅動容量／工期 | **Experimental：** 2×2、Farm(4H,5J)/House(8H)/Shop(8J)、1/1/2 Tick；**Proposed：** 候選排序、道路接觸、版本遷移 |
 | Economy | 初始資金、分區費率、成本取整 | 固定精度，禁止透支 |
 | Tick Order | **Confirmed：** Command Boundary → Completion → Development → Migration → Monthly Settlement（僅月界）→ Snapshot / Domain Events | **Proposed：** completionTick 算式、最短工期、月結算採 Tick 結束狀態；月界精確映射待測 |
 | Development Order | 候選順序、無效候選重試 | 建立順序 FIFO，失敗跳過 |
 | Migration Atomicity | 住宅分配與人口守恆 | Plan→Validate→Commit |
 | Persistence | v1 Schema、Config Version、PRNG、Checkpoint | IndexedDB 原子 Checkpoint |
+
+### P0 Building Selection — Confirmed（使用者選 A，2026-11-03）
+
+- **首個 Vertical Slice：** 每種 Zone 對應一種固定 Building Type：Agriculture→Farm、Residential→House、Commercial→Shop；Building Definition 資料驅動 Footprint、Housing／Jobs 容量、施工工期。此為 Slice 選擇策略，不永久排除更多建築種類。
+- **責任分離：** Building Definition 不自行規劃道路；Development Planner 自動選擇合法 Building Footprint，與 Road Planner A 聯合驗證道路／建築佔地，再原子提交 Road Tiles、Building Footprint、Parcel `CONSTRUCTING`（SDD-008、011、029～034；Conflict-04）。Footprint 完整落在所屬矩形 Parcel 內，不占其他 Parcel、道路或 Building，不裁切矩形 Parcel。
+- **Housing／Jobs 與 Tick：** Farm ACTIVE 同時提供有限 Housing + Jobs（Conflict-01）；`CONSTRUCTING` 不提供容量；Completion → Development → Migration 確保本 Tick 完工的 Building 可在本 Tick Migration 使用。Population 維持 Building Aggregate、Oldest Building First deterministic allocation（SDD-009、035～038），Building ID 穩定。
+- **開局／QA：** 首座農場需具備合法 Footprint、Road Planner 接觸、成功開工與完工，且提供足夠 Housing／Jobs 才能在 1× 1～3 分鐘出現移民。這是 Golden Scenario 待驗證條件，尚未執行或通過測試。
+- **Experimental（非正式核准數值）：** Farm／House／Shop Footprint 均 2×2；Farm (Housing=4, Jobs=5)、House (8,0)、Shop (0,8)；工期分別 1／1／2 Tick。R、M、每 Tick 開工 N 仍為原 Experimental 設定。
+- **Proposed／未決：** Footprint 候選位置的穩定排序、旋轉規則、Road 接觸 Parcel 還是直接接觸 Building、失敗後候選重試、Definition／Config Version 與存檔 Schema 遷移、無法開發的 UX。不得將 2×2／容量／工期／道路接觸方式提升為 Confirmed。
+- **相容性：** SDD-008～009、011、029～038、Conflict-01～05、Parcel Geometry A、Road Planner A、Tick Order A 均保持不變；未涉及完整 Building Operational Lifecycle（Conflict-03）。
 
 ### P0 Road Planner — Confirmed（使用者選 A，2026-11-03）
 
