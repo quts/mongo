@@ -1,6 +1,6 @@
 # Mongo SDD-001～038 決策索引與整合審查
 
-**狀態：** Review Required（Conflict-01～03 已裁決；Conflict-04～05 仍待決議）  
+**狀態：** Review Required（Conflict-01～04 已裁決；Conflict-05 仍待決議）  
 **日期：** 2026-11-03  
 **範圍：** 對話中已確認的 SDD-001～038；不代表 Repository 已實作或已通過測試  
 **既有主文件：** [Phase 1 Design](phase1_design.md)
@@ -84,11 +84,14 @@
 - **Conflict-01 / 02 相容：** ACTIVE 農場可同時提供 Housing 與 Jobs；首個 Slice 聚焦農業開局與人口成長。未來農場停業時容量與住戶如何處理，仍為未決規格。
 - **Proposed，非本次批准：** 將 Construction Lifecycle 與 Operational Lifecycle 分離，未來可考慮 `ACTIVE / INACTIVE / ABANDONED`；具體停業條件、遷出速率、拆除、復業及人口處置規則全部待後續決策。
 
-### BLOCKER-04：道路生成時機
+### RESOLVED-04：道路生成時機
 
-- 主文件 D-09、§5.3 使用「分區或建築自帶道路」與「分區、Parcel 或特殊建築建立時」的概念描述。
-- SDD-011、030 明確要求 **Parcel 開發開始時** 才原子建立道路與工地。
-- 建議在主文件將私人 Parcel 道路生成時機精確化為「開工時」，公共特殊建築道路規則另行定義。
+- **Confirmed（使用者選 A，2026-11-03）：一般私人 Parcel 的實體自動道路僅在 Development System 開工時生成，不在分區建立時生成。** `phase1_design.md` §5.3 已同步精確化；D-09 的「玩家無需手動鋪路」仍然有效。
+- **SDD-010～017 相容：** Road Tile Grid 為權威資料；道路與工地在同一 Atomic Development Command 提交；道路屬公共道路，由抽象私人開發商支付，不直接扣玩家財政；可形成不連接 HQ 的獨立聚落；不得占用已分區／已占用 Tile 或切割 Parcel。
+- **SDD-018～022 相容：** 尚未開工的 `ZONED` Parcel 可取消／改分區，不需要刪除因該 Parcel 生成的實體道路（因為此時尚未生成）。
+- **SDD-029～034 相容：** 先 Validate Parcel、Plan Road + Building、Validate Occupancy / Cost，再原子提交 Road Tiles、Building Footprint 與 `CONSTRUCTING` 狀態；任何驗證失敗均不得部分提交。道路開工後立即可用，建築 ACTIVE 前不提供 Housing / Jobs。
+- **Conflict-01～03 相容：** 農場的 Housing / Jobs、Vertical Slice 交付邊界與未來建築退出規則不變。
+- **仍未決：** 村委會與特殊建築道路的時機、成本與配置另依其規格設計；Road Preview 只屬可選 UX 提案，並未在本次批准。
 
 ### BLOCKER-05：現有概念 Schema 與已確認 Lifecycle
 
@@ -129,7 +132,7 @@
 
 ## 六、建議第一批 PR / Work Items（非實作完成聲明）
 
-1. **Docs reconciliation**：Conflict-01～03 已裁決；處理 BLOCKER-04～05，必要時同步 `phase1_design.md` 與本索引。
+1. **Docs reconciliation**：Conflict-01～04 已裁決；處理 BLOCKER-05，必要時同步 `phase1_design.md` 與本索引。
 2. **Core foundation**：GameState、Commands、Tick、Snapshot、Domain Events、Determinism Tests。
 3. **World and zoning**：Tile Grid、Parcel、靜態地價、退款及原子交易。
 4. **Road and development**：Road Planner、開工／完工、Building Definitions。
