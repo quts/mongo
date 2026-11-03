@@ -215,6 +215,8 @@ interface Building {
 
 **P0 Road Planner 已確認（2026-11-03，方案 A）：** 私人 Parcel 在 Development 開工時，優先規劃接入既有公共道路的最小合法新增道路；若無合法連接路徑，允許在 Parcel 外建立最小合法的獨立公共道路（Bootstrap），不要求與 HQ 或全島路網連通。無論哪一種情況，都必須存在合法的 Parcel 邊界道路接觸點；Bootstrap 不得穿越海洋、非法地形、既有 Parcel／Building／道路不可佔用區，或切割矩形 Parcel。Road Tile Grid 是權威資料；道路、Building Footprint、`CONSTRUCTING` 必須在同一開工交易中驗證並原子提交，失敗不留下部分道路或工地。道路為公共道路，成本由抽象私人開發商承擔，不向玩家公共財政收取道路建造費；Road Planner 不會在 Zoning Phase 預先生成道路。**Proposed／未決：** 道路寬度 1 Tile、4-neighbor 道路連通／Parcel 接觸、確定性 BFS 以最少新增 Tile 為成本、固定 Tile Index tie-break、Bootstrap 最小長度與合法接觸點挑選、錯誤碼、Road Revision 更新及未來路型擴充。上述細節尚未獨立核准；首批農場／移民 1～3 分鐘仍待 Golden Scenario 驗證。
 
+**P0 Building Selection 已確認（2026-11-03，方案 A）：** 首個 Vertical Slice 每種 Zone 對應一個固定 Building Type（Agriculture→Farm、Residential→House、Commercial→Shop），以資料驅動 Building Definition 描述容量、Footprint 與施工工期；Development Planner 自動選擇合法 Footprint，並與 Road Planner 聯合驗證後原子開工。Footprint 必須完全位於所屬矩形 Parcel 內，不得侵占其他 Parcel／道路／Building，亦不改變 Parcel 幾何。Farm ACTIVE 時同時提供有限 Housing + Jobs（Conflict-01）；所有 Building 僅在 Completion Phase 完工並 ACTIVE 後才提供 Housing／Jobs，Migration Phase 可於同 Tick 使用。穩定 Building ID、人口 Building Aggregate、Oldest Building First 與 Tick Order A 不變。**Experimental：** Farm／House／Shop 均 2×2，Housing／Jobs 分別 (4,5)／(8,0)／(0,8)，工期分別 1／1／2 Tick；這些數值並未批准。**Proposed／未決：** Footprint 候選排序／旋轉、道路只需接觸 Parcel 還是直接接觸 Footprint、Building Definition 與存檔版本化／遷移、無可用 Footprint 的重試及 UI 呈現；1× 農業開局 1～3 分鐘仍須實測。此決策只固定首個 Slice 的類型選擇，不排除後續多建築種類。
+
 ### 5.2 分區操作
 
 `ApplyZone(tiles, targetZone)` 的處理流程：
