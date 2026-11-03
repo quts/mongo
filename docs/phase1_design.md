@@ -81,8 +81,8 @@
 | --- | --- | --- |
 | Rendering | **已確認：Three.js + TypeScript** | 直接管理 3D 場景；仍需實機驗證效能 |
 | UI Framework | **已確認：React + Vite** | React 管理 HUD、選單與管理介面；不使用 React Three Fiber |
-| Simulation | 瀏覽器端 Pure TypeScript | 易測試、低成本、免伺服器同步 |
-| 存檔 | **已確認：單一本機存檔、可重新開始** | 儲存格式版本化；雲端同步延後 |
+| Simulation | **已確認：瀏覽器 Main Thread Pure TypeScript Simulation Core** | Core Single Writer、同步原子 Commands、版本化 Snapshots；Worker 待量測後再評估（SDD-001～004） |
+| 存檔 | **已確認：IndexedDB 單一本機存檔、可重新開始** | 原子 Checkpoint、版本化 State／Tick／PRNG／Scheduler Metadata；Schema、遷移及多分頁協調細節待定（SDD-007） |
 | 時間 | **已確認：每分鐘 Micro Tick、每遊戲月財務結算；暫停、1×／2×／4×** | 精確遊戲日曆換算與事件批次演算法待驗證 |
 | 地形 | 預先配置少量高低差 | 不提供地形編輯 |
 | 資料模型 | Tile Grid + Parcel + Building | 支援多格建築與不同土地用途 |
@@ -206,11 +206,12 @@ interface Building {
   parcelId?: string;
   footprint: number[];
   level: number;
-  status: "active" | "vacant" | "abandoned";
+  // Operational states are deferred; construction state is separate.
+  status?: "active" | "vacant" | "abandoned";
 }
 ```
 
-這是**概念 Schema**，不是已核准的最終 API。Parcel 分割、合併、佔地及建築配置必須可重現、可測試。
+這是**概念 Schema**，不是已核准的最終 API。依 SDD-008、029～034，權威資料採 Dense Tile Grid 與正規化 Parcel／Building；Parcel 開發階段為 `ZONED → CONSTRUCTING → DEVELOPED`，施工開始時須保存 `completionTick`，完工後 Building 才進入 ACTIVE 並提供容量。`active / vacant / abandoned` 是未來營運狀態的舊概念，**不是** Parcel 施工階段，也不是本次核准的 Operational State Machine。正式 Schema、Parcel 分割／合併及佔地規則仍待設計。
 
 ### 5.2 分區操作
 
@@ -223,15 +224,11 @@ interface Building {
 5. 更新 Tile、Parcel、財務交易紀錄。
 6. 發送事件供 Renderer 和 HUD 更新。
 
-暫定公式：
+**已確認的分區交易規則（SDD-018～028）：** 僅 `ZONED` Parcel 可取消或改分區；分區費依 Parcel 面積、靜態地價與 Zone Factor 計算，地價依地形類型及海岸距離，海岸影響按用途區分。取消分區退還原實付 `zoningPaidAmount` 的 80%；改分區在同一原子交易中退舊實付的 80% 並收取新用途全額，重設成本基礎。可淨退款，但交易後公共財政不可為負。
 
-```text
-zoningCost = sum(baseZoneCost[zone] * terrainMultiplier[tile])
-conversionCost = sum(conversionFee[fromZone][toZone])
-totalCost = zoningCost + conversionCost + demolitionAndCompensation
-```
+**Experimental：** 海岸用途倍率農業 0.8、住宅 1.3、商業 1.1。**Proposed／未決：** 海岸距離度量、逐 Tile 加總方式、固定精度與整數取整、拆除補償規則。舊版 `baseZoneCost × terrainMultiplier` 與 `conversionFee` 只是概念公式，**不是首個 Vertical Slice 的權威計價公式**。實際費率仍需遊玩測試。
 
-實際費率需透過遊玩測試調整。**私人建築的建造費用不可全部算到玩家公共財政**；玩家支付的是分區與公共建設成本。
+**私人建築的建造費用不可全部算到玩家公共財政**；玩家支付的是分區與公共建設成本。
 
 ### 5.3 自動道路
 
@@ -247,7 +244,7 @@ Phase 1 不計算完整道路圖與車流；可用簡單的可達性與地形係
 2. 找出符合分區、地形、佔地與容量條件的空 Parcel。
 3. 依需求、土地適宜性、可達性、開發阻力計算分數。
 4. 使用固定 Seed 的 PRNG，並限制每個 Tick 的開發數量。
-5. 生成一級建築、維持閒置或退出；記錄原因。
+5. 首個 Vertical Slice 對合法 Parcel 原子建立道路、Building Footprint 與 `CONSTRUCTING`，依持久化 `completionTick` 完工後才啟用容量；建築停業／退出留待後續 Phase 1。
 6. 更新住宅容量、就業、農業與商業活動指標。
 
 示意公式：
@@ -264,7 +261,7 @@ probability = sigmoid(score)
 
 參數與正規化方式都需後續調整。**不能因為機率大於零就無限長出建築**；必須同時滿足需求、土地容量與開發上限。加入 Cooldown 或 Hysteresis，避免建築每月反覆出現與消失。
 
-第一版只需要「空 Parcel → 一級建築」，不做完整升級樹。
+首個 Vertical Slice 只需「`ZONED` Parcel → `CONSTRUCTING` → `DEVELOPED`／ACTIVE 一級建築」，不做完整升級樹。每 Tick 成功開工上限 N 與各 Building Type 固定施工 Tick 數已確認需資料化；N=2、農業／住宅=1 Tick、商業=2 Ticks 均為 Experimental。
 
 ## 七、人口與簡化經濟
 
@@ -279,15 +276,16 @@ probability = sigmoid(score)
 
 ### 7.2 人口遷入遷出
 
-不建立每位居民的 AI。依工作機會、服務、環境、生活成本等條件計算吸引力，並受住宅容量限制。
+不建立每位居民的 AI。**首個 Vertical Slice 依 SDD-035～038**，人口遷入同時受 ACTIVE 建築的住宅容量 H 與工作容量 J 約束，採固定 Jobs-to-Population Ratio R 與每 Tick 移民上限 M；按具有住宅容量的 ACTIVE Building **穩定建立順序**分配，人口以 Building Aggregate 記錄。ACTIVE 農場同時提供少量 Housing 與 Jobs，初期不必另劃住宅區；施工中不提供容量。R=2、M=3 仍為 Experimental。
+
+**Proposed 的計算示例，非最終核准公式：**
 
 ```text
-attractiveness = incomeOpportunity + services + environment - livingCost - risk
-expectedInflow = min(housingVacancy, max(0, migrationRate * (attractiveness - baseline)))
-expectedOutflow = min(existingHouseholds, max(0, exitRate * (baseline - attractiveness)))
+supportedPopulation = min(H, floor(J * R))
+immigrants = min(M, max(0, supportedPopulation - currentPopulation))
 ```
 
-此公式僅供原型驗證；各項單位、權重與邊界必須資料化。人口不能超出住宅容量；遷出應對長期經濟問題反應，避免單月波動導致劇烈震盪。
+舊版依服務、環境、生活成本計算 `attractiveness / expectedInflow / expectedOutflow` 的公式，**不是首個 Vertical Slice 的權威 Migration Algorithm**。完整 Phase 1 仍保留人口遷出，但遷出條件、速率、空置建築及營運狀態機留待後續設計。
 
 ### 7.3 公共財政
 
@@ -380,7 +378,7 @@ closingCash = openingCash
 ## 十、存檔、CI 與部署
 
 - Phase 1 使用**單一本機存檔**與版本化格式，具備 Schema 驗證與版本升級入口；可重新開始，且必須二次確認清除進度。不提供多存檔欄位。
-- 儲存方式依實際資料量決定；若 Local Storage 不適合，改用 IndexedDB。
+- **已確認 IndexedDB（SDD-007）**：原子 Checkpoint 保存版本化 GameState、Tick、PRNG、Scheduler Metadata／時間戳；Schema、Migration、Config Version 及多分頁競爭處理仍待設計。
 - 自動存檔發生在安全的模擬狀態邊界。
 - CI 執行型別檢查、Lint、測試與 Production Build。
 - Vercel 提供 Preview Deployment；Phase 1 不需要 AWS EC2。
@@ -477,7 +475,7 @@ closingCash = openingCash
 1. 桌面與手機瀏覽器能載入 64×64 的 Low-poly 3D 島嶼，並在規劃與幹事探索模式之間切換。
 2. 玩家可平移、縮放、選地、規劃農業／住宅／商業區，並放置至少一種特殊建築。
 3. 每次分區操作可預覽費用，且遵守財務、地形與佔地限制。
-4. 道路隨分區／建築自動生成，沒有手動鋪路工具。
+4. 一般私人 Parcel 道路在**開工時**與工地原子生成；玩家不需要手動鋪路，特殊建築道路規則另定。
 5. 私人建築隨時間與需求自主發展，不需玩家逐棟建造。
 6. 人口可以遷入／遷出，且不超出住宅容量。
 7. 財政依分區、維護、農業與商業公共收入指標變化，收支可追蹤。
