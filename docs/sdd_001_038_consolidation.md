@@ -113,13 +113,23 @@
 | --- | --- | --- |
 | Map Initialization | 固定 LandMask、HQ 合法位置與開局起算 | 固定測試地圖；玩家先免費放置 HQ |
 | Parcel Geometry | **Confirmed：** 首個 Vertical Slice 一次框選一個完整軸對齊矩形 Parcel；4-neighbor 連通、禁止重疊、非法整筆拒絕 | **Experimental：** minParcelArea=1 Tile；**Proposed：** 最小長寬／可建面積、UI 警告、正式 Schema 與未來遷移 |
-| Road Planner | 起點、寬度、最短路、tie-break、失敗原因 | 確定性 Grid 搜尋 |
+| Road Planner | **Confirmed：** 最小合法接入既有公共道路；無合法路徑時獨立 Bootstrap；合法 Parcel 邊界接觸；開工原子提交 | **Proposed：** 1-Tile 寬、4-neighbor、BFS 成本／tie-break、Bootstrap 最小長度、錯誤碼 |
 | Building Selection | Zone→Building Type、Footprint、Capacity | 每種 Zone 先一種 Building |
 | Economy | 初始資金、分區費率、成本取整 | 固定精度，禁止透支 |
 | Tick Order | **Confirmed：** Command Boundary → Completion → Development → Migration → Monthly Settlement（僅月界）→ Snapshot / Domain Events | **Proposed：** completionTick 算式、最短工期、月結算採 Tick 結束狀態；月界精確映射待測 |
 | Development Order | 候選順序、無效候選重試 | 建立順序 FIFO，失敗跳過 |
 | Migration Atomicity | 住宅分配與人口守恆 | Plan→Validate→Commit |
 | Persistence | v1 Schema、Config Version、PRNG、Checkpoint | IndexedDB 原子 Checkpoint |
+
+### P0 Road Planner — Confirmed（使用者選 A，2026-11-03）
+
+- **策略：** 開工時先尋找可接入既有公共道路的最小合法新增道路路徑；若不存在合法連接路徑，允許生成獨立最小合法公共道路（Bootstrap），不強制連接 HQ 或全島道路網。Bootstrap 仍須有合法的 Parcel 邊界接觸點；沒有合法接觸點即不得開工，不能把「BFS 失敗」視為自動開工成功。
+- **權威與限制：** Road Tile Grid 權威、Road Graph 衍生（SDD-010）；不得占用已分區／已占用 Tile、海洋或非法地形，不得切割矩形 Parcel（SDD-017；Parcel Geometry A）。既有道路可作連接端點，但不能重複當作新增道路占用。
+- **成本與歸屬：** 新道路是公共道路，成本由抽象私人開發商負擔，不扣玩家公共財政；無道路維護費 MVP（SDD-012～014）。
+- **開工原子性：** 僅在 Development Phase 生成道路；Road Plan、Building Footprint 與 Parcel `CONSTRUCTING` 同筆驗證、原子提交；失敗保持 `ZONED`，不留下部分道路／工地／扣款（SDD-011、029～034；Conflict-04）。成功後道路立即可用；建築仍待 Completion Phase 才提供 Housing／Jobs（Conflict-01；Tick Order A）。
+- **開局驗收：** 獨立 Bootstrap 讓第一塊農地不依賴 HQ 道路連通，但不能保證 1× 的 1～3 分鐘移民目標；需用固定 LandMask、合法農地、Scheduler 相位、Development 順序、工期及 Migration 容量做 Golden Scenario 測試。
+- **Proposed／未決：** 1-Tile 道路寬度、4-neighbor 道路連通及 Parcel 正交接觸、確定性 BFS（最少新增 Road Tile）、固定 Tile Index tie-break、起點／終點候選枚舉、Bootstrap 最小長度、合法道路接觸點選擇、錯誤碼、Road Revision 更新與未來路型擴充。選 A **不代表這些細節已 Confirmed**。
+- **相容性：** SDD-010～017、矩形 Parcel、Conflict-01～05、Completion → Development → Migration → Settlement → Publish 不變；取消 `ZONED` Parcel 不刪除已存在的公共道路（SDD-018～022）。
 
 ### P0 Parcel Geometry — Confirmed（使用者選 A，2026-11-03）
 
