@@ -1,6 +1,6 @@
 # Mongo SDD-001～038 決策索引與整合審查
 
-**狀態：** Review Required（Conflict-01 已裁決；其他跨文件衝突仍待決議）  
+**狀態：** Review Required（Conflict-01、02 已裁決；其他跨文件衝突仍待決議）  
 **日期：** 2026-11-03  
 **範圍：** 對話中已確認的 SDD-001～038；不代表 Repository 已實作或已通過測試  
 **既有主文件：** [Phase 1 Design](phase1_design.md)
@@ -67,11 +67,13 @@
 - **不能直接把「必須先劃住宅區」寫成已確認需求。**
 - **Confirmed（使用者選 A，2026-11-03）：農場 Building 在 ACTIVE 後同時提供 Jobs 與少量 Housing Capacity（農舍）。** 不必先劃住宅區即可迎來首批移民；農舍不是額外自動生成的獨立 Building，也不需要獨立 Parcel／施工流程。\n- SDD-035～038 之 Housing 計算與分配，適用於所有 ACTIVE 且 `housingCapacity > 0` 的 Building（包含農場），不只 Residential Zone 的 Building。人口 Aggregate 記錄在提供住宅容量的 Building 上。\n- `CONSTRUCTING` 農場不提供 Jobs、Housing，也不直接產生人口。ACTIVE 後仍由每 Tick 的 R / M / 可用容量規則遷入，依穩定 Building 建立順序入住。\n- 建議以 Building Definition 的 `housingCapacity`、`jobCapacity` 表示容量，具體欄位與數值仍為 Proposed / Experimental。\n- 保留原始 Phase 1 D-27 與 1～3 分鐘目標；需在 Golden Scenario 實測，並確認 Tick Phase 順序。
 
-### BLOCKER-02：Phase 1 範圍與首個 Vertical Slice 範圍不同
+### RESOLVED-02：Phase 1 範圍與首個 Vertical Slice 範圍不同
 
-- 既有主文件確認 **探索 + 規劃雙模式**、手機瀏覽器、三種分區、農舍、月結算及後期遷出為 Phase 1 方向。
-- SDD Consolidation 建議的 **首個 Vertical Slice** 僅聚焦農業／住宅／移民，可先不交付完整商業、雙模式、遷出及完整財政。
-- **建議保留主文件的 Phase 1 範圍，另標示較小的 Vertical Slice 驗收範圍**；不得把縮小 Vertical Slice 當作撤銷 Phase 1 已確認功能。
+- **Confirmed（使用者選 A，2026-11-03）：分階段交付，完整 Phase 1 目標不變。** 首個 Vertical Slice 是中間的可玩驗證里程碑，不是縮小版 Phase 1，也不取代既有 M0～M6 或 Phase 1 Definition of Done。
+- **Vertical Slice DoD：** 64×64 測試島嶼、最小 Three.js 規劃互動、農業優先開局（ACTIVE 農場提供少量 Housing 與 Jobs）、基本住宅分區、開工／完工、移民、基本分區財政、最小存檔／離線驗證；桌面可玩並做手機初步驗證。
+- **Phase 1 DoD 保持不變：** 探索＋規劃雙模式、農業／住宅／商業三種分區、桌面與手機完整操作、簡化財政月結算、人口遷入／遷出及主文件已確認的其餘範圍。
+- **邊界：** Slice 未實作的商業、完整財政、遷出與探索模式，不得標為 Rejected 或從 Phase 1 移除；只標示為後續 Phase 1 Milestones。Slice 完成不得宣稱 Phase 1 完成。
+- **相容性：** SDD-001～038 的 Simulation / Zoning / Construction / Migration 規則不變；此決策只規範交付順序與兩套不同的驗收門檻。
 
 ### BLOCKER-03：建築退出／人口遷出 vs. 不可取消施工
 
@@ -125,7 +127,7 @@
 
 ## 六、建議第一批 PR / Work Items（非實作完成聲明）
 
-1. **Docs reconciliation**：Conflict-01 已裁決；處理 BLOCKER-02～05，必要時同步 `phase1_design.md` 與本索引。
+1. **Docs reconciliation**：Conflict-01、02 已裁決；處理 BLOCKER-03～05，必要時同步 `phase1_design.md` 與本索引。
 2. **Core foundation**：GameState、Commands、Tick、Snapshot、Domain Events、Determinism Tests。
 3. **World and zoning**：Tile Grid、Parcel、靜態地價、退款及原子交易。
 4. **Road and development**：Road Planner、開工／完工、Building Definitions。
