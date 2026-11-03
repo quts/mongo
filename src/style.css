@@ -1,0 +1,263 @@
+:root {
+  font-family: "Noto Sans TC", system-ui, sans-serif;
+  color: #25493c;
+  background: #b7d9d6;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button {
+  font: inherit;
+  font-size: 13px;
+  border: 1px solid #c5d0bc;
+  background: #f7f7ea;
+  color: #294d3e;
+  border-radius: 8px;
+  padding: 9px 13px;
+  cursor: pointer;
+}
+button:hover {
+  background: #e1e9d5;
+}
+button[aria-pressed="true"] {
+  background: #315d49;
+  color: #fff;
+  border-color: #315d49;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button:focus-visible {
+  outline: 3px solid #b2763b;
+  outline-offset: 2px;
+}
+.world {
+  position: fixed;
+  inset: 0;
+  touch-action: none;
+}
+.world canvas {
+  display: block;
+}
+header {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+h1 {
+  font-size: 25px;
+  letter-spacing: 3px;
+  margin: 3px 0;
+}
+h2 {
+  font-size: 21px;
+  margin: 9px 0 15px;
+}
+h3 {
+  font-size: 15px;
+}
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #547365;
+  font-weight: 700;
+}
+.stats {
+  display: flex;
+  gap: 28px;
+  background: #fbf9edef;
+  border: 1px solid #d4dccb;
+  border-radius: 14px;
+  padding: 12px 24px;
+  box-shadow: 0 8px 24px #25493c12;
+}
+.stats span {
+  font-size: 11px;
+}
+.stats strong {
+  display: block;
+  font-size: 22px;
+  font-weight: 500;
+}
+.stats small {
+  font-size: 13px;
+}
+.panel {
+  background: #fbf9edf5;
+  border: 1px solid #d5dccb;
+  border-radius: 15px;
+  box-shadow: 0 12px 35px #264c391c;
+  padding: 23px;
+  width: 300px;
+}
+aside {
+  position: absolute;
+  top: 115px;
+  left: 24px;
+  max-height: calc(100dvh - 245px);
+  overflow: auto;
+}
+p {
+  font-size: 13px;
+  line-height: 1.9;
+  color: #536b5b;
+}
+.hint {
+  font-size: 11px;
+  color: #718173;
+}
+.tools {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.selection {
+  border-top: 1px solid #d8dfcf;
+  margin-top: 14px;
+}
+.actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.notice {
+  font-size: 12px;
+  line-height: 1.8;
+  border-left: 3px solid #93a97d;
+  padding-left: 10px;
+  margin-top: 18px;
+}
+.zoom {
+  position: absolute;
+  right: 24px;
+  bottom: 145px;
+  display: grid;
+  gap: 5px;
+}
+.zoom button {
+  font-size: 20px;
+}
+footer {
+  position: absolute;
+  bottom: 30px;
+  left: 24px;
+  right: 24px;
+  display: flex;
+  gap: 25px;
+  align-items: center;
+  background: #fbf9edf5;
+  border-radius: 14px;
+  padding: 16px 22px;
+  border: 1px solid #d4dccb;
+}
+footer strong,
+footer small {
+  display: block;
+}
+footer strong {
+  font-size: 14px;
+  margin: 3px 0;
+}
+footer small {
+  font-size: 10px;
+  color: #748574;
+}
+.reset {
+  margin-left: auto;
+}
+.badge {
+  position: absolute;
+  bottom: 8px;
+  right: 25px;
+  font-size: 9px;
+  color: #3f655d;
+  pointer-events: none;
+}
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: #183c3677;
+  display: grid;
+  place-items: center;
+}
+.scrim .panel {
+  width: min(420px, 90vw);
+}
+@media (max-width: 700px) {
+  header {
+    left: 12px;
+    right: 12px;
+    top: 12px;
+    align-items: start;
+  }
+  h1 {
+    font-size: 19px;
+  }
+  .eyebrow {
+    font-size: 8px;
+  }
+  .stats {
+    padding: 8px 12px;
+    gap: 12px;
+  }
+  .stats strong {
+    font-size: 17px;
+  }
+  .stats span {
+    font-size: 9px;
+  }
+  aside.panel {
+    left: 12px;
+    top: 90px;
+    width: 235px;
+    padding: 15px;
+    max-height: calc(100dvh - 240px);
+  }
+  h2 {
+    font-size: 17px;
+  }
+  p {
+    font-size: 11px;
+  }
+  .hint {
+    font-size: 10px;
+  }
+  button {
+    font-size: 11px;
+    padding: 8px;
+  }
+  footer {
+    left: 12px;
+    right: 12px;
+    bottom: 25px;
+    gap: 10px;
+    padding: 10px;
+    flex-wrap: wrap;
+  }
+  footer strong {
+    font-size: 11px;
+  }
+  footer .actions {
+    gap: 3px;
+  }
+  .reset {
+    margin-left: 0;
+  }
+  .zoom {
+    right: 12px;
+    bottom: 160px;
+  }
+  .badge {
+    font-size: 8px;
+  }
+}
