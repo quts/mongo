@@ -1,6 +1,6 @@
 # Mongo SDD-001～038 決策索引與整合審查
 
-**狀態：** Review Required（Conflict-01、02 已裁決；其他跨文件衝突仍待決議）  
+**狀態：** Review Required（Conflict-01～03 已裁決；Conflict-04～05 仍待決議）  
 **日期：** 2026-11-03  
 **範圍：** 對話中已確認的 SDD-001～038；不代表 Repository 已實作或已通過測試  
 **既有主文件：** [Phase 1 Design](phase1_design.md)
@@ -75,12 +75,14 @@
 - **邊界：** Slice 未實作的商業、完整財政、遷出與探索模式，不得標為 Rejected 或從 Phase 1 移除；只標示為後續 Phase 1 Milestones。Slice 完成不得宣稱 Phase 1 完成。
 - **相容性：** SDD-001～038 的 Simulation / Zoning / Construction / Migration 規則不變；此決策只規範交付順序與兩套不同的驗收門檻。
 
-### BLOCKER-03：建築退出／人口遷出 vs. 不可取消施工
+### RESOLVED-03：建築退出／人口遷出 vs. 不可取消施工
 
-- 主文件 D-10、§6、§7、Phase 1 DoD 提及私人建築退出、人口遷出。
-- SDD-031 禁止的是玩家在開工後取消／修改 Parcel；SDD-035～038 **尚未設計**人口遷出或建築退出。
-- 不應把「施工不可取消」誤解成「建築永遠不能退出」，也不能在首個 Vertical Slice 假裝已有遷出。
-- 建議把退出與遷出標成 Phase 1 後續工作，首個 Vertical Slice 明確不驗收。
+- **Confirmed（使用者選 A，2026-11-03）：保留 Simulation 自主建築退出與人口遷出作為完整 Phase 1 需求，但延後至首個 Vertical Slice 之後。** 不刪除主文件 D-10、§6、§7 及 Phase 1 DoD 的既有產品目標。
+- **SDD-031 不變：** 玩家只能取消／變更 `ZONED` Parcel；`CONSTRUCTING` 或 `DEVELOPED` Parcel 不可由玩家取消或改分區。這項玩家操作限制不禁止未來 Simulation 讓營運建築停業或退出。
+- **SDD-029～034 不變：** 首個 Vertical Slice 僅處理分區、開工、固定工期、完工與 ACTIVE；不提前實作停業、廢棄、拆除或重新營運。
+- **SDD-035～038 不變：** 首個 Vertical Slice 僅驗收 ACTIVE 建築提供容量及人口遷入；完整 Phase 1 後續設計人口遷出，不能將尚未實作的遷出宣稱已完成。
+- **Conflict-01 / 02 相容：** ACTIVE 農場可同時提供 Housing 與 Jobs；首個 Slice 聚焦農業開局與人口成長。未來農場停業時容量與住戶如何處理，仍為未決規格。
+- **Proposed，非本次批准：** 將 Construction Lifecycle 與 Operational Lifecycle 分離，未來可考慮 `ACTIVE / INACTIVE / ABANDONED`；具體停業條件、遷出速率、拆除、復業及人口處置規則全部待後續決策。
 
 ### BLOCKER-04：道路生成時機
 
@@ -127,7 +129,7 @@
 
 ## 六、建議第一批 PR / Work Items（非實作完成聲明）
 
-1. **Docs reconciliation**：Conflict-01、02 已裁決；處理 BLOCKER-03～05，必要時同步 `phase1_design.md` 與本索引。
+1. **Docs reconciliation**：Conflict-01～03 已裁決；處理 BLOCKER-04～05，必要時同步 `phase1_design.md` 與本索引。
 2. **Core foundation**：GameState、Commands、Tick、Snapshot、Domain Events、Determinism Tests。
 3. **World and zoning**：Tile Grid、Parcel、靜態地價、退款及原子交易。
 4. **Road and development**：Road Planner、開工／完工、Building Definitions。
