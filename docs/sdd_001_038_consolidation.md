@@ -1,6 +1,6 @@
 # Mongo SDD-001～038 決策索引與整合審查
 
-**狀態：** Review Required（文件整理完成，跨文件衝突尚待決議）  
+**狀態：** Review Required（Conflict-01 已裁決；其他跨文件衝突仍待決議）  
 **日期：** 2026-11-03  
 **範圍：** 對話中已確認的 SDD-001～038；不代表 Repository 已實作或已通過測試  
 **既有主文件：** [Phase 1 Design](phase1_design.md)
@@ -60,15 +60,12 @@
 
 ## 三、與既有 Phase 1 主文件的衝突（需使用者裁決）
 
-### BLOCKER-01：第一批移民是否需要住宅分區
+### RESOLVED-01：第一批移民是否需要住宅分區
 
 - `phase1_design.md` D-27、§8、§10.1、M3 明確確認：**第一塊農地後 1～3 分鐘出現農舍與首批移民；農舍提供住宅容量，初期不要求住宅分區**。
 - SDD-035～038 明確確認：**住宅容量 + 工作機會共同限制移民**；農場提供工作、住宅提供容量的開局示例，容易被解讀為必須另外劃設住宅區。
 - **不能直接把「必須先劃住宅區」寫成已確認需求。**
-- 待決方案：
-  1. **保留農舍**：農業開發同時產生可居住農舍（或農業 Building 同時提供 Housing Capacity 和 Jobs），沿用原先農地開局。
-  2. **改為農業 + 住宅雙分區**：正式修訂 D-27、M3、開局引導與 1～3 分鐘驗收。
-- 不論選哪個，R / M、人口入住順序、建築容量來源必須一致。
+- **Confirmed（使用者選 A，2026-11-03）：農場 Building 在 ACTIVE 後同時提供 Jobs 與少量 Housing Capacity（農舍）。** 不必先劃住宅區即可迎來首批移民；農舍不是額外自動生成的獨立 Building，也不需要獨立 Parcel／施工流程。\n- SDD-035～038 之 Housing 計算與分配，適用於所有 ACTIVE 且 `housingCapacity > 0` 的 Building（包含農場），不只 Residential Zone 的 Building。人口 Aggregate 記錄在提供住宅容量的 Building 上。\n- `CONSTRUCTING` 農場不提供 Jobs、Housing，也不直接產生人口。ACTIVE 後仍由每 Tick 的 R / M / 可用容量規則遷入，依穩定 Building 建立順序入住。\n- 建議以 Building Definition 的 `housingCapacity`、`jobCapacity` 表示容量，具體欄位與數值仍為 Proposed / Experimental。\n- 保留原始 Phase 1 D-27 與 1～3 分鐘目標；需在 Golden Scenario 實測，並確認 Tick Phase 順序。
 
 ### BLOCKER-02：Phase 1 範圍與首個 Vertical Slice 範圍不同
 
@@ -113,7 +110,7 @@
 
 ## 五、首個 Vertical Slice：建議驗收範圍
 
-**不等於完整 Phase 1 DoD。** 在 BLOCKER-01 解決前，開局驗收條件仍待確認。
+**不等於完整 Phase 1 DoD。** Conflict-01 已解決：農場 ACTIVE 後同時提供住宅與工作容量；首塊農地可觸發首批移民，具體時間需測試。
 
 1. 固定 64×64 測試島嶼，免費 HQ 選址，成功放置後開始 Tick。
 2. 農業與住宅分區（商業資料可預留，完整經濟延後）。
@@ -128,11 +125,11 @@
 
 ## 六、建議第一批 PR / Work Items（非實作完成聲明）
 
-1. **Docs reconciliation**：裁決 BLOCKER-01～05，更新 `phase1_design.md` 與本索引。
+1. **Docs reconciliation**：Conflict-01 已裁決；處理 BLOCKER-02～05，必要時同步 `phase1_design.md` 與本索引。
 2. **Core foundation**：GameState、Commands、Tick、Snapshot、Domain Events、Determinism Tests。
 3. **World and zoning**：Tile Grid、Parcel、靜態地價、退款及原子交易。
 4. **Road and development**：Road Planner、開工／完工、Building Definitions。
-5. **Migration**：H/J/R/M、Building Aggregate、FIFO 分配。
+5. **Migration**：H/J/R/M、具住宅容量的 Building Aggregate（含 ACTIVE 農場）、依建立順序分配。
 6. **Playable prototype and persistence**：Three.js 操作、IndexedDB、離線補算與 Golden Scenario。
 
 ## 七、驗證紀錄與限制
