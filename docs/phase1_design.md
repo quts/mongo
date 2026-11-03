@@ -213,6 +213,8 @@ interface Building {
 
 這是**概念 Schema**，不是已核准的最終 API。依 SDD-008、029～034，權威資料採 Dense Tile Grid 與正規化 Parcel／Building；Parcel 開發階段為 `ZONED → CONSTRUCTING → DEVELOPED`，施工開始時須保存 `completionTick`，完工後 Building 才進入 ACTIVE 並提供容量。`active / vacant / abandoned` 是未來營運狀態的舊概念，**不是** Parcel 施工階段，也不是本次核准的 Operational State Machine。正式 Schema 欄位與資料遷移仍待設計。**P0 Parcel Geometry 已確認（2026-11-03）：首個 Vertical Slice 僅允許玩家一次矩形框選建立一個完整、非空、軸對齊的矩形 Parcel；不自動裁切、拆分或合併。** 完整矩形天然滿足 4-neighbor 連通；對角接觸不合併。任何 Tile 若為海洋、非法地形、道路或已有 Parcel／Building 占用，整筆分區 Command 拒絕，不部分建立。Road Planner 仍依 SDD-017 避開已分區／已占用 Tile，並於 Development 開工時與工地原子提交。僅 `ZONED` Parcel 可取消或改分區，退款依原實付 `zoningPaidAmount` 的 80% 計算，與目前地價無關。**Experimental：** `minParcelArea = 1 Tile` 僅供 Prototype；允許分區不保證 Building Footprint／道路可開發。**Proposed／未決：** 最小長寬、最小可建面積、無法開發時的 UI 警告、正式矩形表示與驗證 API、日後不規則 Parcel 的存檔遷移。
 
+**P0 Road Planner 已確認（2026-11-03，方案 A）：** 私人 Parcel 在 Development 開工時，優先規劃接入既有公共道路的最小合法新增道路；若無合法連接路徑，允許在 Parcel 外建立最小合法的獨立公共道路（Bootstrap），不要求與 HQ 或全島路網連通。無論哪一種情況，都必須存在合法的 Parcel 邊界道路接觸點；Bootstrap 不得穿越海洋、非法地形、既有 Parcel／Building／道路不可佔用區，或切割矩形 Parcel。Road Tile Grid 是權威資料；道路、Building Footprint、`CONSTRUCTING` 必須在同一開工交易中驗證並原子提交，失敗不留下部分道路或工地。道路為公共道路，成本由抽象私人開發商承擔，不向玩家公共財政收取道路建造費；Road Planner 不會在 Zoning Phase 預先生成道路。**Proposed／未決：** 道路寬度 1 Tile、4-neighbor 道路連通／Parcel 接觸、確定性 BFS 以最少新增 Tile 為成本、固定 Tile Index tie-break、Bootstrap 最小長度與合法接觸點挑選、錯誤碼、Road Revision 更新及未來路型擴充。上述細節尚未獨立核准；首批農場／移民 1～3 分鐘仍待 Golden Scenario 驗證。
+
 ### 5.2 分區操作
 
 `ApplyZone(tiles, targetZone)` 的處理流程：
