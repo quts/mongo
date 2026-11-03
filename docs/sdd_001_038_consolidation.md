@@ -161,6 +161,107 @@
 - **1～3 分鐘目標：** 保留 Phase 1 D-27 的首批農舍與移民 UX 驗收；1 Tick 施工工期只是 Experimental，是否在 1～3 分鐘內出現須以 Scheduler 相位、Development 選取及容量的 Golden Scenario 實測，**尚未宣稱通過**。
 - **Proposed / 未決：** `completionTick = startTick + durationTicks`、`durationTicks >= 1`、月結算使用 Tick 結束狀態、精確日曆／月界映射與事件發布失敗策略。以上不因選 A 自動變成 Confirmed。
 
+## 四之一、P0 完整實作提案（全部 Proposed，待 PR Review）
+
+> **Review contract：** 本節是可直接轉成實作與測試的 **Proposed implementation baseline**，不是使用者批准的新 Confirmed 決策。涉及具體平衡數值者標為 **Experimental**。若與上文 Confirmed、Conflict-01～05 或 `phase1_design.md` 衝突，以既有 Confirmed 為準並提出 Review comment；不得默默覆蓋。適用範圍為首個 Vertical Slice，後續完整 Phase 1 仍依主文件交付。
+
+### P0-01 Map Initialization — Proposed
+
+- 固定 `width=64, height=64`，Tile Index `index=y*64+x`，`x,y∈[0,63]`；原點與畫面投影分離。使用版本化、提交到 Repository 的測試 `LandMask`、`terrainType`、`elevation`、`coastDistance` 資料，不在載入時隨機生成地形。所有 Tile 先驗證陣列長度、索引範圍及合法 Terrain。
+- HQ 為免費、玩家主動放置的特殊建築；只接受完整位於可建陸地、未占用 Tile 的候選 Footprint。HQ Placement 成功才初始化遊戲時鐘與 Tick Scheduler；失敗不得修改任何狀態。HQ 的精確尺寸、是否需要道路及建築資產為 **Experimental／Deferred**，不套用私人 Parcel 的 Road Planner 規則。
+- `tick=0` 表示尚未完成第一個 Micro Tick；成功放置 HQ 時記錄 `startTimestamp`、`lastWallClockTimestamp`、`tick=0` 與初始 Seed。第一個排程 Tick 編號為 1。初始資金與地圖 Seed 為版本化 Config；首次遊玩禁止隱式重新抽 Seed。
+
+### P0-02 Parcel Geometry — Proposed implementation details
+
+- **Confirmed boundary：** 每次 Command 僅建立一個完整、非空、軸對齊矩形 Parcel；不可自動裁切／拆分。建議 API 使用整數 `minX,minY,maxXExclusive,maxYExclusive`；驗證 `0<=minX<maxXExclusive<=64`、`0<=minY<maxYExclusive<=64`，面積為寬×高，依 row-major 展開 Tile Index。
+- 使用 Dense Tile Grid 的 `parcelId` 作為 Tile 唯一歸屬，Parcel record 存矩形 Bounds、Zone、`createdSequence`、`zoningPaidAmount`、Lifecycle；對所有 Tile 驗證 `LandMask`、可建 Terrain、道路、HQ／Building／Parcel Occupancy。整筆先 Plan+Validate，再 Commit；任一格非法回傳穩定 Error Code，不扣款、不產生 ID、不部分修改。
+- **Experimental：** `minParcelArea=1` 只作幾何合法下限；可開發性另由 Building Footprint + Road Planner 判定。**Proposed UX：** 分區預覽標示「合法但目前不可開發」，而非默默拒絕；是否強制要求至少可容納當前 Building Type 留給 Review。
+- 同一 Tile 的 Parcel 與其內 Building Footprint 可共存（`buildingId` 為 Parcel 內子占用），不可把「Parcel 已分區」誤判成其所屬 Building 不可開工；Road Tile 則永遠不得與 Parcel Tile 重疊。
+
+### P0-03 Road Planner — Proposed deterministic algorithm
+
+- **Confirmed boundary：** 僅於私人 Parcel 開工時計畫道路；優先連接既有公共道路，無合法路徑才獨立 Bootstrap；不得跨海洋、非法 Terrain、任何 Parcel 或已占用 Tile；不要求 HQ 連通；道路、Footprint、施工原子提交。
+- **Proposed：** 道路寬 1 Tile；正交 4-neighbor。合法 Access 定義為至少一個 Parcel 邊界 Tile 與 Road Tile 正交相鄰；不要求 Road 直接貼 Building Footprint。枚舉所有合法邊界外側 Road 候選，去重並按 Tile Index 升冪排序。
+- 若已存在正交接觸的公共 Road，Road Plan 為空新增路徑、Access 已滿足。否則從全部合法 Parcel 邊界外側候選出發，對可建且未占用的 Tile 做 multi-source BFS，搜尋任何既有公共 Road 的正交鄰格；目標是**最少新增 Road Tile**。相同長度時以完整新增 Road Tile Index 序列的字典序決勝，不依賴 HashMap／Set 迭代順序；候選搜尋不得經過其他 Parcel。
+- 無合法連接路徑時 Bootstrap：在合法邊界外側候選中選 Tile Index 最小的一格，建立 1 Tile 的獨立公共 Road；若沒有候選，回傳 `NO_ROAD_ACCESS`。**Experimental：** Bootstrap 最短 1 Tile。既有道路被障礙隔開時允許獨立道路，與 SDD-015～016 相容。
+- 道路原子提交後只增加 `roadRevision` 一次，衍生 Road Graph 依 revision 失效重建；不建立開發商錢包，不向 Treasury 扣道路成本，不收 MVP 道路維護費。**Proposed：** Road Cost 可作統計但不影響是否開工。
+- `ROAD_PATH_UNAVAILABLE`、`NO_ROAD_ACCESS`、`ROAD_PLAN_CONFLICT` 等穩定 Error Codes 作為 Proposed；不得部分提交或刪除既有公共 Road。
+
+### P0-04 Building Selection / Footprint — Proposed implementation details
+
+- **Confirmed boundary：** Slice 每種 Zone 一個固定 Building Type：Agriculture→Farm、Residential→House、Commercial→Shop；Building Definition 是資料，不負責道路規劃；由 Development Planner 選 Footprint。
+- **Experimental definitions：** Farm `2×2,H=4,J=5,duration=1`；House `2×2,H=8,J=0,duration=1`；Shop `2×2,H=0,J=8,duration=2`；固定 `R=2,M=3,N=2`。這些數值必須能從 Config 替換，不可散落在 Core 邏輯中。
+- **Proposed：** 先只支援未旋轉的軸對齊矩形 Footprint；枚舉完整落在 Parcel 內的候選，按 Footprint 左上角 Tile Index 升冪選第一個。道路只需接觸 Parcel；Footprint 不要求貼 Road。無候選回傳 `NO_BUILDING_FOOTPRINT`，Parcel 保持 ZONED；不裁切、不變更 Zone。
+- 同一 Parcel 首個 Slice 最多一棟私人 Building；Building ID／`creationSequence` 只在成功 Commit 時遞增；Building Definition 以 `definitionId` + `definitionVersion` 或 Config Version 綁定存檔，避免更新遊戲後歷史工期與容量無預警改變。**Proposed：** 已開工工期持久化為 `completionTick`，已完工容量按建造時綁定 Definition Version 讀取。
+
+### P0-05 Economy / Zoning — Proposed exact arithmetic
+
+- **Confirmed boundary：** 靜態地價取決於 Terrain + Coast Distance；各 Zone 有不同海岸係數；費用以 Parcel 面積、地價、Zone Factor 決定；取消退原實付 80%；改 Zone 原子退舊 80% 加收新全額；最終 Treasury 不可負。
+- **Proposed：** 所有金額以整數最小貨幣單位保存，所有倍率以整數 basis points（10000=1.0）保存；不使用浮點計算財務。單格 `baseLandValue[terrain]` 先按 coast band 與 zone factor 逐次乘除，採 `floor`；Parcel 總價為各格計價之和；在預覽與 Commit 使用同一個純函式。這是「面積×地價×用途係數」在非均質地形上的逐 Tile 展開。
+- **Proposed：** 取消退款 `refund=floor(zoningPaidAmount*8000/10000)`；改 Zone 的新費用依**當前靜態地圖 + 目前 Zone Config**計算，`newTreasury=oldTreasury+refund-newCost`，僅在最終餘額非負時一次提交；同 Zone 改 Zone 為 No-op，不產生新交易。成功改 Zone 後持久化新的 `zoningPaidAmount=newCost`；失敗保持原成本基礎與 Parcel ID。
+- **Experimental：** 起始 Treasury=10000 單位；平地 baseLandValue=10 單位／Tile；Zone Factor agriculture=1.0、residential=1.5、commercial=2.0；海岸係數 agriculture=0.8、residential=1.3、commercial=1.1。這些僅供第一版 Balance Test，非正式定價。
+- **Proposed：** Coast Distance 用 LandMask 上的 4-neighbor BFS 到最近海洋／島外邊界（陸地距離以 Tile 步數計），海岸帶 `distance<=2`，其餘係數=1.0；Land Value Cache key 包含 `mapVersion,configVersion,zone`。這個距離定義與海岸帶寬仍待 Review。
+- **Proposed：** Treasury 記帳以 `transactionId`、`tick`、`type`、`amount`、`parcelId` 保存；禁止同一 Command 重複扣款。私人道路／私人建築不由公共 Treasury 支付。
+
+### P0-06 Tick / Construction / Calendar — Proposed exact semantics
+
+- **Confirmed phase order：** Command Boundary → Completion → Development → Migration → Monthly Settlement（僅月界）→ Snapshot / Domain Event Publication。每次 `advanceOneTick` 使用同一 Pipeline，離線不可另寫近似演算法。
+- **Proposed：** HQ 放置後 `tick=0`；Tick T 開始時先讀取在上次 Tick 結束前已成功提交的 Commands；新分區在下一次 Development Phase 首次候選。Tick T Development 開工時記錄 `startTick=T`、`completionTick=T+max(1,durationTicks)`；Completion Phase 僅處理 `completionTick<=T` 的既有工地，依 `completionTick,creationSequence` 升冪完成。Tick T 完工的 ACTIVE Farm 立即參與 Tick T Migration。
+- **Proposed calendar：** 1 Tick=1 遊戲日、每月固定 120 Ticks、每年 1440 Ticks；每當 `T%120===0` 月結一次，與 1× 60 秒／Tick、現實 24 小時=遊戲 1 年一致。此為抽象 12 個等長月份，不採真實 Gregorian 日期；不得把 120-Tick 月當作現實 30 天。
+- **Proposed：** 月結算讀取本 Tick Migration 後的期末狀態，使用 `lastSettledMonthIndex` 防止重複入帳；財務項目先以 Config 指定固定稅／支出，未定義項目為 0，不擅自實作新稅制。若支出超過 Treasury，不允許負數；**建議**只扣到 0 並記錄未支付額為事件，不建立隱式負債。此財務短缺策略需在 PR Review 特別確認。
+- **Proposed：** Tick 全部狀態變更完成後統一 publish 一個 Versioned Snapshot，Domain Events 按 Phase、Building／Parcel 穩定 ID 排序；Event Delivery 失敗不能 rollback 已提交 Core 狀態。Command 自身同步原子提交並排隊 Events；UI 不可觀察 Tick 內半成品。
+- **Offline：** 72h=4320 個 1× Ticks 上限；每次補算循序呼叫同一 `advanceOneTick`，可分批讓出 UI thread 但不可跳過中間 Migration／月結算／PRNG；Pause 關閉不補算；Checkpoint 只在完整 Tick 邊界提交。
+
+### P0-07 Development Order / Retry — Proposed
+
+- **Proposed：** 每 Tick Development Phase 從 `ZONED` Parcel 中選擇 `createdSequence` 升冪（同值用 Parcel ID）排列；新分區需 `createdTick<T` 才能候選。每 Tick 最多 **N 個成功**開工（N=2 Experimental），失敗候選不消耗 N，仍檢查後續候選，避免第一塊壞地永久阻塞全島。
+- 每個候選在當前權威 GameState 上重新計算 Building Footprint + Road Plan + 可行性；每次成功 Commit 後下一候選必須重新驗證 Tile Occupancy／Road Revision。候選失敗保持 ZONED 並記錄穩定 `lastFailureCode`（非持續 Event Spam）；下一 Tick 可以重試，因為其他開發可能改變道路接入。
+- **Proposed performance：** 先每 Tick 重試全部 ZONED（64×64 小地圖可接受），量測後再加入失敗依賴版本快取；不得因快取漏掉可開工候選。無「農業插隊」特例，首批農業體驗由 Golden Scenario 驗證。
+
+### P0-08 Migration Atomicity / Determinism — Proposed
+
+- **Confirmed boundary：** 僅 ACTIVE Building 貢獻 H/J；Farm 同時有 H/J；R 限制工作支撐人口、M 限制每 Tick 新移民；居民按 Housing Building 建立順序填入；不實作完整就業分配。
+- **Proposed：** `H=sum(active.housingCapacity)`，`J=sum(active.jobCapacity)`，`supported=min(H,floor(J*R))`，`immigrants=min(M,max(0,supported-currentPopulation))`；對所有 ACTIVE 且 Housing>0 的 Building 依 `creationSequence,buildingId` 升冪填入，不超過單棟容量。使用暫存 Migration Plan，驗證分配總和等於 immigrants、全局 Population 等於各棟 Residents 加總、容量與 Treasury 不變後一次 Commit。
+- **Proposed：** 首個 Slice 不主動遷出；若 Config 改變使 `currentPopulation>supported`，保留既有人口並停止遷入，不強行裁切人口；完整 Phase 1 的 emigration／Building Exit 依 Conflict-03 後續設計。
+- **Experimental Golden Example：** Farm H=4,J=5,R=2,M=3，人口 0 → 首次可移民 Tick 3 人、下一 Tick 1 人；若 Farm 尚在 CONSTRUCTING，移民 0。
+
+### P0-09 Persistence / Replay / Migration — Proposed
+
+- **Confirmed boundary：** IndexedDB 原子 Checkpoint，包含 GameState、Tick、PRNG、Scheduler Metadata、timestamp、Schema Version；Core Single Writer；離線固定 1×。
+- **Proposed v1 envelope：** `schemaVersion`、`configVersion`、`mapVersion`、`gameId`、`stateRevision`、`tick`、`seed`、`prngState`、`scheduler{speed,paused,lastWallClockTimestamp,accumulatedMs}`、`lastSettledMonthIndex`、`nextParcelSequence`、`nextBuildingSequence`、`tiles`、`parcels`、`buildings`、`treasury`、`ledger`。Parcel 保存 Bounds、Zone、`createdTick`、`createdSequence`、`zoningPaidAmount`、Lifecycle、`completionTick?`；Building 保存 Definition Version、Footprint、Housing Residents、creationSequence、Activation State。
+- IndexedDB 在單筆 transaction 中寫入完整 Checkpoint + metadata + revision；讀取時先校驗 Schema、Tile/Parcel/Building 關聯、人口容量與金額不變式，失敗拒絕載入並保留原資料供診斷。**Proposed：** 單一 GameState Snapshot Store（首個 Slice），不需要 Event Sourcing 或每 Tick 寫入 IndexedDB。
+- **Proposed：** Schema Migration 為純函式、逐版本 `v1→v2`；先產生新 Snapshot 並校驗，再原子替換；不修改舊資料直到成功。Building Definition Version 與原始 zoningPaidAmount 不可因升級重新計算；舊矩形 Bounds 未來可轉 Tile Set，但 Parcel ID／退款基礎不變。
+- **Proposed：** 多分頁先以 Web Locks 單 Writer Lease，無法取得 Lease 的分頁唯讀；搭配 IndexedDB `stateRevision` Compare-and-Swap 防舊 Writer 覆蓋。Web Locks 不可用時採唯讀安全降級，而非雙 Writer。精確 API 與瀏覽器相容性待實作驗證。
+- **Proposed：** Online、Background、Offline 使用相同 `advanceOneTick`；在固定 Seed、初始 Checkpoint、Config Version 與 Command Log 下比較逐 Tick State Hash。Replay Event 順序穩定，牆上時鐘與 Renderer FPS 不得進入 Simulation PRNG。
+
+### P0-10 Cross-system Invariants / QA Acceptance — Proposed
+
+| ID | 驗證條件 | 建議測試 |
+| --- | --- | --- |
+| INV-01 | Tile Index 範圍合法，LandMask 禁止海上 Parcel／Road／Building | Property-based geometry tests |
+| INV-02 | Parcel 完整矩形、單一 4-neighbor component；Tile 只屬一個 Parcel | Rectangular boundary / overlap |
+| INV-03 | Road 與 Parcel／Building Occupancy 不重疊；Road Planner 不切 Parcel | Blocked coast / occupied corridor |
+| INV-04 | 開工成功一次提交 Road+Footprint+CONSTRUCTING；失敗零副作用 | Atomic commit / rollback |
+| INV-05 | ZONED 取消／改 Zone 退款依 persisted paid amount；Treasury 永不負 | 80% rounding / net refund |
+| INV-06 | CONSTRUCTING 無 H/J；完工 Tick Migration 可用 ACTIVE Farm H/J | Construction phase boundary |
+| INV-07 | 每 Tick 成功開工數<=N，失敗候選不阻塞後續候選 | FIFO / retry / same-tick conflicts |
+| INV-08 | Population=sum(Building Residents)，單棟不超 Housing，移民<=M | Oldest-first / insufficient jobs |
+| INV-09 | 每個月界最多結算一次；Reload／Offline 不重複結算 | T=119/120/121 / restore |
+| INV-10 | 同 Seed+Commands+Config 的 Online／Offline Replay State Hash 相同 | 4320-Tick replay |
+| INV-11 | Failed Command 不消耗 ID、不改 PRNG、不扣款、不發布成功事件 | Command failure matrix |
+| INV-12 | Snapshot 不包含半完成 Tick，Event 順序可重播 | Subscriber reentrancy / event order |
+
+**Golden Scenarios（需實際執行才可標為 Passed）：**
+
+1. **Farm Bootstrap：** HQ 成功 → 第一塊合法 2×2 以上農業 Parcel → Development 開工並建立最小 Road → 下一 Completion Tick 農場 ACTIVE → 同 Tick 首批移民；量測玩家劃設完成至可見移民的 1× 1～3 分鐘體驗。需測 Scheduler 相位邊界與 UI 更新延遲。
+2. **Road Blocked：** Parcel 四周無合法 Road 接觸點，開工失敗、Parcel 保持 ZONED、無部分道路／Footprint。
+3. **FIFO and Retry：** 最早 Parcel 無法開工，第二 Parcel 成功；新 Road 出現後前者下一 Tick 可重試。
+4. **Economy:** Cancel / Change Zone 的 80% 取整、淨退款、餘額不足與同 Zone No-op；重載後成本基礎不變。
+5. **Construction / Migration：** 工期 1/2 Ticks、Tick 邊界、Farm H+J、Oldest-first 分配、人口容量不溢位。
+6. **Replay / Persistence：** 120-Tick 月界、4320-Tick Offline、暫停重啟、重複載入、存檔 Schema 錯誤與跨分頁寫入衝突。
+
+**Review hotspots：** 月結算財政短缺策略、1-Tile Bootstrap 對路網美感、Parcel 可合法但不可開發的 UX、同月完工的期末結算基準、存檔多分頁降級行為。這些均是 Proposed，PR Review 可以直接修改，不應視為已批准。
+
 ## 五、首個 Vertical Slice：建議驗收範圍
 
 **不等於完整 Phase 1 DoD。** Conflict-01 已解決：農場 ACTIVE 後同時提供住宅與工作容量；首塊農地可觸發首批移民，具體時間需測試。
