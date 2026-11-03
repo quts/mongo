@@ -200,6 +200,29 @@ test("72h catch-up yields to browser event loop under 4x CPU throttling", async 
       totalMs = 0,
       active = false,
       finished = false;
+    let maxGapAtTick = "",
+      maxGapAtMs = 0;
+    const longTasks: { duration: number; startTime: number }[] = [];
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries())
+        if (
+          start &&
+          entry.startTime >= start &&
+          (!finished || entry.startTime <= start + totalMs)
+        )
+          longTasks.push({
+            duration: entry.duration,
+            startTime: entry.startTime - start,
+          });
+    }).observe({ entryTypes: ["longtask"] });
+    const recordGap = (now: number) => {
+      if (now - last > maxGap) {
+        maxGap = now - last;
+        maxGapAtMs = now - start;
+        maxGapAtTick =
+          document.querySelector('[data-testid="tick"]')?.textContent ?? "";
+      }
+    };
     new MutationObserver(() => {
       const running =
         document.body?.textContent?.includes("正在補算離線進度") ?? false;
@@ -209,7 +232,7 @@ test("72h catch-up yields to browser event loop under 4x CPU throttling", async 
       }
       if (active && !running) {
         const now = performance.now();
-        maxGap = Math.max(maxGap, now - last);
+        recordGap(now);
         totalMs = now - start;
         active = false;
         finished = true;
@@ -222,12 +245,20 @@ test("72h catch-up yields to browser event loop under 4x CPU throttling", async 
     setInterval(() => {
       if (!active) return;
       const now = performance.now();
-      maxGap = Math.max(maxGap, now - last);
+      recordGap(now);
       last = now;
       beats++;
     }, 5);
     Object.defineProperty(window, "testCatchUpMetrics", {
-      get: () => ({ beats, maxGap, totalMs, finished }),
+      get: () => ({
+        beats,
+        maxGap,
+        totalMs,
+        finished,
+        maxGapAtTick,
+        maxGapAtMs,
+        longTasks,
+      }),
     });
   });
   const session = await context.newCDPSession(page);
@@ -247,9 +278,6 @@ test("72h catch-up yields to browser event loop under 4x CPU throttling", async 
   const metrics = await page.evaluate(() =>
     Reflect.get(window, "testCatchUpMetrics"),
   );
-  expect(metrics.finished).toBe(true);
-  expect(metrics.beats).toBeGreaterThan(100);
-  expect(metrics.maxGap).toBeLessThan(500);
   console.info(
     JSON.stringify({
       benchmark: "chromium-72h-mixed-4x",
@@ -257,6 +285,9 @@ test("72h catch-up yields to browser event loop under 4x CPU throttling", async 
       ...metrics,
     }),
   );
+  expect(metrics.finished).toBe(true);
+  expect(metrics.beats).toBeGreaterThan(100);
+  expect(metrics.maxGap).toBeLessThan(500);
   await session.send("Emulation.setCPUThrottlingRate", { rate: 1 });
   await session.detach();
 });

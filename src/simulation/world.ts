@@ -113,22 +113,28 @@ export function roadPlan(state: GameState, p: Parcel): number[] | undefined {
   if (border.some((i) => state.tiles[i].road)) return [];
   const starts = border.filter((i) => free(state.tiles[i]));
   if (!starts.length) return undefined;
-  // Sorted multi-source BFS yields shortest paths, then full-path lexicographic order.
-  const queue = starts.map((i) => [i]);
-  const visited = new Set(starts);
+  // No target road exists: bootstrap without exploring the entire island.
+  if (!state.tiles.some((tile) => tile.road)) return [starts[0]];
+  // The sorted FIFO order is unchanged; parent links avoid copying every path.
+  const queue = [...starts];
+  const parent = new Int32Array(state.tiles.length).fill(-1);
+  for (const i of starts) parent[i] = -2;
   for (let head = 0; head < queue.length; head++) {
-    const path = queue[head],
-      last = path[path.length - 1];
-    if (neighbors(last).some((i) => state.tiles[i].road)) return path;
+    const last = queue[head];
+    if (neighbors(last).some((i) => state.tiles[i].road)) {
+      const path: number[] = [];
+      for (let i = last; i >= 0; i = parent[i]) path.push(i);
+      return path.reverse();
+    }
     for (const next of neighbors(last))
-      if (!visited.has(next) && free(state.tiles[next])) {
-        visited.add(next);
-        queue.push([...path, next]);
+      if (parent[next] === -1 && free(state.tiles[next])) {
+        parent[next] = last;
+        queue.push(next);
       }
   }
   return [starts[0]];
 }
 
 export function refundAmount(paidAmount: number): number {
-  return Math.floor(paidAmount * 8000 / 10000);
+  return Math.floor((paidAmount * 8000) / 10000);
 }

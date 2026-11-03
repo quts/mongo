@@ -25,6 +25,13 @@ export class Island {
   private tool: Tool = "hq";
   private ray = new THREE.Raycaster();
   private signature = "";
+  private tileSignature = "";
+  private buildingViews = new Map<
+    string,
+    { signature: string; group: THREE.Group }
+  >();
+  private geometries = new Map<string, THREE.BufferGeometry>();
+  private materials = new Map<number, THREE.MeshLambertMaterial>();
   constructor(
     private host: HTMLElement,
     private onBounds: (b: Bounds, done: boolean) => void,
@@ -207,87 +214,127 @@ export class Island {
     if (signature === this.signature) return;
     this.signature = signature;
     this.needsRender = true;
-    const matrix = new THREE.Matrix4(),
-      color = new THREE.Color();
-    s.tiles.forEach((tile, i) => {
-      matrix.makeTranslation(
-        (i % 64) + 0.5,
-        tile.land ? 0 : -2,
-        Math.floor(i / 64) + 0.5,
-      );
-      this.land.setMatrixAt(i, matrix);
-      const p = tile.parcelId ? s.parcels[tile.parcelId] : undefined;
-      color.setHex(
-        tile.road
-          ? 0xe4d6b6
-          : p
-            ? colors[p.zone]
-            : (i + Math.floor(i / 64)) % 3 === 0
-              ? 0x97b97b
-              : 0x9fbf82,
-      );
-      this.land.setColorAt(i, color);
-    });
-    this.land.instanceMatrix.needsUpdate = true;
-    if (this.land.instanceColor) this.land.instanceColor.needsUpdate = true;
-    for (const child of [...this.objects.children]) this.disposeObject(child);
-    this.objects.clear();
+    const tileSignature = JSON.stringify([
+      s.gameId,
+      s.roadRevision,
+      Object.values(s.parcels).map((p) => [p.id, p.zone, p.bounds]),
+    ]);
+    if (this.tileSignature !== tileSignature) {
+      this.tileSignature = tileSignature;
+      const matrix = new THREE.Matrix4(),
+        color = new THREE.Color();
+      s.tiles.forEach((tile, i) => {
+        matrix.makeTranslation(
+          (i % 64) + 0.5,
+          tile.land ? 0 : -2,
+          Math.floor(i / 64) + 0.5,
+        );
+        this.land.setMatrixAt(i, matrix);
+        const p = tile.parcelId ? s.parcels[tile.parcelId] : undefined;
+        color.setHex(
+          tile.road
+            ? 0xe4d6b6
+            : p
+              ? colors[p.zone]
+              : (i + Math.floor(i / 64)) % 3 === 0
+                ? 0x97b97b
+                : 0x9fbf82,
+        );
+        this.land.setColorAt(i, color);
+      });
+      this.land.instanceMatrix.needsUpdate = true;
+      if (this.land.instanceColor) this.land.instanceColor.needsUpdate = true;
+    }
+    for (const [id, view] of this.buildingViews)
+      if (!s.buildings[id]) {
+        this.objects.remove(view.group);
+        this.buildingViews.delete(id);
+      }
     for (const b of Object.values(s.buildings)) {
+      const signature = JSON.stringify(b),
+        previous = this.buildingViews.get(b.id);
+      if (previous?.signature === signature) continue;
+      if (previous) this.objects.remove(previous.group);
+      const group = new THREE.Group();
+      this.buildingViews.set(b.id, { signature, group });
+      this.objects.add(group);
       const xs = b.footprint.map((i) => i % 64),
         ys = b.footprint.map((i) => Math.floor(i / 64)),
         x = (Math.min(...xs) + Math.max(...xs) + 1) / 2,
         z = (Math.min(...ys) + Math.max(...ys) + 1) / 2;
       const h = b.active ? (b.definitionId === "hq" ? 2.4 : 1.4) : 0.6;
       const body = new THREE.Mesh(
-        new THREE.BoxGeometry(1.65, h, 1.65),
-        new THREE.MeshLambertMaterial({
-          color: !b.active
+        this.geometry(`body-${h}`, () => new THREE.BoxGeometry(1.65, h, 1.65)),
+        this.material(
+          !b.active
             ? 0xc09c6c
             : b.definitionId === "hq"
               ? 0xf4e5be
               : b.definitionId === "agriculture"
                 ? 0xefdfaa
                 : 0xe8d4c0,
-        }),
+        ),
       );
       body.position.set(x, 0.3 + h / 2, z);
-      this.objects.add(body);
+      group.add(body);
       if (b.active) {
         const roof = new THREE.Mesh(
-          new THREE.ConeGeometry(1.4, 0.8, 4),
-          new THREE.MeshLambertMaterial({
-            color:
-              b.definitionId === "hq"
-                ? 0x526f7b
-                : b.definitionId === "agriculture"
-                  ? 0xb27357
-                  : 0x617d73,
-          }),
+          this.geometry("roof", () => new THREE.ConeGeometry(1.4, 0.8, 4)),
+          this.material(
+            b.definitionId === "hq"
+              ? 0x526f7b
+              : b.definitionId === "agriculture"
+                ? 0xb27357
+                : 0x617d73,
+          ),
         );
         roof.rotation.y = Math.PI / 4;
         roof.position.set(x, 0.3 + h + 0.4, z);
-        this.objects.add(roof);
+        group.add(roof);
       }
       for (let n = 0; n < b.residents; n++) {
         const resident = new THREE.Mesh(
-          new THREE.SphereGeometry(0.12, 5, 4),
-          new THREE.MeshLambertMaterial({ color: 0xe6ab64 }),
+          this.geometry("resident", () => new THREE.SphereGeometry(0.12, 5, 4)),
+          this.material(0xe6ab64),
         );
         resident.position.set(x - 0.65 + n * 0.35, 0.55, z + 1.1);
-        this.objects.add(resident);
+        group.add(resident);
       }
     }
   }
+  private geometry(key: string, create: () => THREE.BufferGeometry) {
+    let value = this.geometries.get(key);
+    if (!value) {
+      value = create();
+      this.geometries.set(key, value);
+    }
+    return value;
+  }
+  private material(color: number) {
+    let value = this.materials.get(color);
+    if (!value) {
+      value = new THREE.MeshLambertMaterial({ color });
+      this.materials.set(color, value);
+    }
+    return value;
+  }
   private disposeObject(object: THREE.Object3D) {
+    const geometries = new Set(this.geometries.values());
+    const materials = new Set<THREE.Material>(this.materials.values());
     object.traverse((child) => {
       if (child instanceof THREE.Mesh) {
-        child.geometry.dispose();
-        const materials = Array.isArray(child.material)
+        geometries.add(child.geometry);
+        for (const material of Array.isArray(child.material)
           ? child.material
-          : [child.material];
-        materials.forEach((m) => m.dispose());
+          : [child.material])
+          materials.add(material);
       }
     });
+    geometries.forEach((value) => value.dispose());
+    materials.forEach((value) => value.dispose());
+    this.geometries.clear();
+    this.materials.clear();
+    this.buildingViews.clear();
   }
   dispose() {
     cancelAnimationFrame(this.frame);

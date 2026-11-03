@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { it, expect } from "vitest";
 import { Core, createState } from "../src/simulation/core";
-import { roadPlan } from "../src/simulation/world";
+import { roadPlan, indices, neighbors, free } from "../src/simulation/world";
 import { validateCheckpoint } from "../src/persistence/checkpoint";
 const end = 1000 + 4320 * 60000;
 function setup() {
@@ -182,4 +182,46 @@ it("injected monotonic budget yields after one expensive tick without changing t
   baseline.elapse(1000 + 10 * 60000, true);
   expect(yields).toBe(9);
   expect(c.getSnapshot()).toEqual(baseline.getSnapshot());
+});
+
+it("parent-link BFS preserves the original full-path lexicographic result across obstacle patterns", () => {
+  const c = setup();
+  c.command({
+    id: "farm",
+    type: "zone",
+    zone: "agriculture",
+    bounds: { minX: 30, minY: 30, maxXExclusive: 32, maxYExclusive: 32 },
+  });
+  function reference(s: ReturnType<Core["getSnapshot"]>): number[] | undefined {
+    const own = new Set(indices(s.parcels.p1.bounds));
+    const border = [
+      ...new Set([...own].flatMap(neighbors).filter((i) => !own.has(i))),
+    ].sort((a, b) => a - b);
+    if (border.some((i) => s.tiles[i].road)) return [];
+    const starts = border.filter((i) => free(s.tiles[i]));
+    if (!starts.length) return undefined;
+    const queue = starts.map((i) => [i]),
+      visited = new Set(starts);
+    for (let head = 0; head < queue.length; head++) {
+      const path = queue[head],
+        last = path[path.length - 1];
+      if (neighbors(last).some((i) => s.tiles[i].road)) return path;
+      for (const next of neighbors(last))
+        if (!visited.has(next) && free(s.tiles[next])) {
+          visited.add(next);
+          queue.push([...path, next]);
+        }
+    }
+    return [starts[0]];
+  }
+  for (let pattern = 0; pattern < 48; pattern++) {
+    const s = structuredClone(c.getSnapshot());
+    for (let i = 0; i < s.tiles.length; i++)
+      if (!s.tiles[i].parcelId && !s.tiles[i].buildingId && s.tiles[i].land) {
+        const value = (i * 37 + pattern * 97) % 113;
+        if (value < 8) s.tiles[i].buildingId = "obstacle";
+        else if (value > 109 && pattern % 4 !== 0) s.tiles[i].road = true;
+      }
+    expect(roadPlan(s, s.parcels.p1)).toEqual(reference(s));
+  }
 });
