@@ -116,10 +116,19 @@
 | Road Planner | 起點、寬度、最短路、tie-break、失敗原因 | 確定性 Grid 搜尋 |
 | Building Selection | Zone→Building Type、Footprint、Capacity | 每種 Zone 先一種 Building |
 | Economy | 初始資金、分區費率、成本取整 | 固定精度，禁止透支 |
-| Tick Order | Completion / Development / Migration / Month Settlement | Completion→Development→Migration→Settlement |
+| Tick Order | **Confirmed：** Command Boundary → Completion → Development → Migration → Monthly Settlement（僅月界）→ Snapshot / Domain Events | **Proposed：** completionTick 算式、最短工期、月結算採 Tick 結束狀態；月界精確映射待測 |
 | Development Order | 候選順序、無效候選重試 | 建立順序 FIFO，失敗跳過 |
 | Migration Atomicity | 住宅分配與人口守恆 | Plan→Validate→Commit |
 | Persistence | v1 Schema、Config Version、PRNG、Checkpoint | IndexedDB 原子 Checkpoint |
+
+### P0 Tick Order — Confirmed（使用者選 A，2026-11-03）
+
+- **Tick 順序：** 已驗證 Commands 於 Command Boundary 套用；`Construction Completion → Development → Migration → Monthly Settlement（僅遊戲月邊界）→ Snapshot / Domain Event Publication`。
+- **Construction / Migration：** 到期工地先完工；ACTIVE Building（包含提供 Housing + Jobs 的農場）當 Tick 即可參與 Migration。當 Tick 新開工建築不可跳過工期，施工中不提供容量。
+- **Atomicity：** Development 仍須一次提交合法道路、Building Footprint 與 `CONSTRUCTING`；Phase 結束前不發布不一致的外部狀態。不得重複月結算。
+- **Offline / Replay：** 線上、背景及離線補算使用同一條 deterministic Core Tick Pipeline；離線以 1× 逐 Tick 邏輯推進，最多 72 小時／4320 Ticks，暫停關閉不補算。任何效能優化不得改變結算或 PRNG 結果。
+- **1～3 分鐘目標：** 保留 Phase 1 D-27 的首批農舍與移民 UX 驗收；1 Tick 施工工期只是 Experimental，是否在 1～3 分鐘內出現須以 Scheduler 相位、Development 選取及容量的 Golden Scenario 實測，**尚未宣稱通過**。
+- **Proposed / 未決：** `completionTick = startTick + durationTicks`、`durationTicks >= 1`、月結算使用 Tick 結束狀態、精確日曆／月界映射與事件發布失敗策略。以上不因選 A 自動變成 Confirmed。
 
 ## 五、首個 Vertical Slice：建議驗收範圍
 
