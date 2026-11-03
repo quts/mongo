@@ -2,6 +2,51 @@
 
 原創島嶼／城鄉經營遊戲。此分支實作 SDD P0 首個 Vertical Slice，**不代表完整 Phase 1 完成**。
 
+## Apple Container 地端驗證
+
+Mac／Apple Silicon 的地端驗證使用 Apple Container；Dockerfile 是共用 OCI 建置規格，不需要 Docker Desktop。指令依 [Apple 官方 CLI 文件](https://github.com/apple/container/blob/main/docs/command-reference.md)。
+
+```sh
+container system start
+container build --platform linux/arm64 --cpus 4 --memory 4G --target validation -t mongo:validation .
+container run --rm --name mongo-validation --cpus 4 --memory 4G --shm-size 1G mongo:validation
+```
+
+`validation` 在 Linux ARM64 內依序執行 TypeScript、Lint、單元／Runtime 測試、production build 及完整 Chromium 情境。依賴和 Chromium 都留在映像內，不掛載 macOS 的 `node_modules`。測試映像與靜態網站執行映像分開。
+
+```sh
+container build --platform linux/arm64 --cpus 4 --memory 4G --target runtime -t mongo:runtime .
+container run --detach --rm --name mongo-preview --cpus 1 --memory 512M --publish 127.0.0.1:18080:8080 mongo:runtime
+curl --fail http://127.0.0.1:18080/healthz
+```
+
+打開 [本機預覽](http://127.0.0.1:18080)。此 `runtime` 只含 Nginx 與 `dist`，不會啟動 Vite，也不包含來源碼、Node 或測試套件。使用 localhost 保留 IndexedDB／Web Locks 的安全來源條件；不對區網開放。
+
+若本機有 Node／Playwright，可針對實際 production bundle 執行桌面／手機尺寸 Golden Scenario：
+
+```sh
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:18080 npx playwright test --grep 'HQ, rectangular farm'
+container stop mongo-preview
+```
+
+完整 E2E 的效能 fixture 會載入開發模組，應在 `validation` 執行；production 容器只跑不依賴來源碼的 Golden Scenario。CI 也會建置 runtime、檢查健康端點並跑此 production 驗證。
+
+`development` target 供容器內開發：
+
+```sh
+container build --platform linux/arm64 --target development -t mongo:development .
+container run --rm --name mongo-dev --publish 127.0.0.1:5173:5173 --volume "$PWD/src:/app/src" mongo:development
+```
+
+變更依賴或未掛載的設定檔後需重建映像。以下原生 Node 指令仍可用於快速迭代，但不能取代 Apple Container 地端驗證。
+
+### 實際驗證紀錄（2026-11-03）
+
+- Apple Container 1.6.0／macOS 26.6.2，兩個容器實測 `uname -m = aarch64`；驗證容器 Node v24.22.2。
+- Linux ARM64／4 vCPU／4 GiB：型別檢查、Lint、57 個單元／Runtime 測試、建置、10 個 Chromium 情境全部通過。
+- ARM64 Nginx runtime：`/healthz` 回傳 200／`ok`；由本機 Chromium 連線該容器提供的 production bundle，桌面／手機尺寸 2 個完整 Golden Scenario 通過。
+- Linux ARM64 容器內 4× CPU 限速混合場景補算約 6.35／5.84 秒；不等同實體 iOS／Android 效能驗收。
+
 ## 本機開發
 
 Node.js 24（`.nvmrc`）、npm：

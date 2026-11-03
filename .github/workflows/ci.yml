@@ -16,6 +16,19 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - name: Build runtime container
+        run: docker build --target runtime -t mongo:ci .
+      - name: Start runtime container
+        run: docker run --detach --rm --name mongo-ci --publish 127.0.0.1:8080:8080 mongo:ci
+      - name: Check runtime health
+        run: curl --fail --retry 20 --retry-all-errors --retry-delay 1 http://127.0.0.1:8080/healthz
+      - name: Verify production bundle in browser
+        run: npx playwright test --grep 'HQ, rectangular farm'
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:8080
+      - name: Stop runtime container
+        if: always()
+        run: docker rm --force mongo-ci || true
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
