@@ -235,7 +235,7 @@ totalCost = zoningCost + conversionCost + demolitionAndCompensation
 
 ### 5.3 自動道路
 
-不提供手動道路工具。分區、Parcel 或特殊建築建立時，系統依模板自動生成道路／農路視覺，費用包含在土地開發或建築成本內。
+不提供手動道路工具。**一般私人 Parcel 劃設分區時不生成實體道路**；只有 Development System 選定 Parcel **開始施工時**，才依 Road Planner 將合法道路／農路 Tile、Building Footprint 與 `CONSTRUCTING` 狀態一次原子提交。開工規劃或驗證失敗時，全部不提交。一般自動道路屬公共道路，由抽象私人開發商負擔其開發成本，不直接扣玩家財政；道路不要求連接村委會，且不可占用已分區／已占用 Tile 或切割 Parcel。**村委會及特殊建築的道路生成時機與成本規則另行定義**，不由本段推定。此段精確化 D-09，保留玩家無需手動鋪路的既有決策。
 
 Phase 1 不計算完整道路圖與車流；可用簡單的可達性與地形係數影響發展效率。須驗證道路不與建築碰撞，也不憑空增加可建築面積。
 
