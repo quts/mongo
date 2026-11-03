@@ -1,6 +1,6 @@
 # Mongo SDD-001～038 決策索引與整合審查
 
-**狀態：** Review Required（Conflict-01～04 已裁決；Conflict-05 仍待決議）  
+**狀態：** Review Required（Conflict-01～05 已裁決；P0 細節與測試仍待完成）  
 **日期：** 2026-11-03  
 **範圍：** 對話中已確認的 SDD-001～038；不代表 Repository 已實作或已通過測試  
 **既有主文件：** [Phase 1 Design](phase1_design.md)
@@ -58,14 +58,18 @@
 | 037 | Migration Rate | 每 Simulation Tick 固定最大移民 M；Data-driven | M=3 Experimental |
 | 038 | Residential Allocation | 依 Building 建立順序，先填滿較早住宅 | 同 Tick 穩定排序欄位 |
 
-## 三、與既有 Phase 1 主文件的衝突（需使用者裁決）
+## 三、與既有 Phase 1 主文件的衝突（五項均已裁決）
 
 ### RESOLVED-01：第一批移民是否需要住宅分區
 
 - `phase1_design.md` D-27、§8、§10.1、M3 明確確認：**第一塊農地後 1～3 分鐘出現農舍與首批移民；農舍提供住宅容量，初期不要求住宅分區**。
 - SDD-035～038 明確確認：**住宅容量 + 工作機會共同限制移民**；農場提供工作、住宅提供容量的開局示例，容易被解讀為必須另外劃設住宅區。
 - **不能直接把「必須先劃住宅區」寫成已確認需求。**
-- **Confirmed（使用者選 A，2026-11-03）：農場 Building 在 ACTIVE 後同時提供 Jobs 與少量 Housing Capacity（農舍）。** 不必先劃住宅區即可迎來首批移民；農舍不是額外自動生成的獨立 Building，也不需要獨立 Parcel／施工流程。\n- SDD-035～038 之 Housing 計算與分配，適用於所有 ACTIVE 且 `housingCapacity > 0` 的 Building（包含農場），不只 Residential Zone 的 Building。人口 Aggregate 記錄在提供住宅容量的 Building 上。\n- `CONSTRUCTING` 農場不提供 Jobs、Housing，也不直接產生人口。ACTIVE 後仍由每 Tick 的 R / M / 可用容量規則遷入，依穩定 Building 建立順序入住。\n- 建議以 Building Definition 的 `housingCapacity`、`jobCapacity` 表示容量，具體欄位與數值仍為 Proposed / Experimental。\n- 保留原始 Phase 1 D-27 與 1～3 分鐘目標；需在 Golden Scenario 實測，並確認 Tick Phase 順序。
+- **Confirmed（使用者選 A，2026-11-03）：農場 Building 在 ACTIVE 後同時提供 Jobs 與少量 Housing Capacity（農舍）。** 不必先劃住宅區即可迎來首批移民；農舍不是額外自動生成的獨立 Building，也不需要獨立 Parcel／施工流程。
+- SDD-035～038 之 Housing 計算與分配，適用於所有 ACTIVE 且 `housingCapacity > 0` 的 Building（包含農場），不只 Residential Zone 的 Building。人口 Aggregate 記錄在提供住宅容量的 Building 上。
+- `CONSTRUCTING` 農場不提供 Jobs、Housing，也不直接產生人口。ACTIVE 後仍由每 Tick 的 R / M / 可用容量規則遷入，依穩定 Building 建立順序入住。
+- 建議以 Building Definition 的 `housingCapacity`、`jobCapacity` 表示容量，具體欄位與數值仍為 Proposed / Experimental。
+- 保留原始 Phase 1 D-27 與 1～3 分鐘目標；需在 Golden Scenario 實測，並確認 Tick Phase 順序。
 
 ### RESOLVED-02：Phase 1 範圍與首個 Vertical Slice 範圍不同
 
@@ -93,13 +97,15 @@
 - **Conflict-01～03 相容：** 農場的 Housing / Jobs、Vertical Slice 交付邊界與未來建築退出規則不變。
 - **仍未決：** 村委會與特殊建築道路的時機、成本與配置另依其規格設計；Road Preview 只屬可選 UX 提案，並未在本次批准。
 
-### BLOCKER-05：現有概念 Schema 與已確認 Lifecycle
+### RESOLVED-05：主文件舊 Schema、存檔與公式同步
 
-- 主文件 §5.1 的 Building Status 為 `active | vacant | abandoned`，並沒有施工狀態。
-- SDD-029～034 需要 `CONSTRUCTING | ACTIVE` 及持久化 `completionTick`；空置／廢棄應是未來另一個維度，不宜混為同一狀態機。
-- 主文件 §10 寫儲存方案依資料量決定；SDD-007 已選 **IndexedDB**。
-- 主文件 §5.2、§7 的定價、人口吸引力公式是 Prototype 舊提案，**不應凌駕 SDD-020～028、035～038**。
-- 待批准同步主文件後再調整概念 Schema 與文字。
+- **Confirmed（使用者選 A，2026-11-03）：** Phase 1 主文件維持唯一產品與範圍權威；經使用者批准的詳細 SDD 是對應技術／模擬規則的權威依據。當早期概念描述與已批准 SDD 不一致時，修訂主文件，不得反向推翻已確認產品需求。Conflict-01～04 保持有效。
+- **Confirmed，已同步主文件：** SDD-001～004 Main Thread / Core Single Writer / Commands / Snapshots；SDD-007 IndexedDB 原子 Checkpoint；SDD-018～028 分區費、80% 原實付退款與靜態地價；SDD-029～034 Parcel 施工生命週期與 `completionTick`；SDD-035～038 ACTIVE Building 的 H/J、R/M 與穩定入住順序。ACTIVE 農場可同時提供少量 Housing 與 Jobs。
+- **Schema 邊界：** `ZONED → CONSTRUCTING → DEVELOPED` 是 Parcel 開發階段；Building ACTIVE 表示完工並開始提供容量。主文件舊 `active / vacant / abandoned` 僅為營運狀態概念，非本次核准的完整狀態機；最終欄位/API 未定。
+- **Experimental，禁止升級為 Confirmed：** 海岸倍率（農業 0.8／住宅 1.3／商業 1.1）、R=2、M=3、每 Tick 開工 N=2、Farm/Residential=1 Tick 與 Commercial=2 Ticks。
+- **Proposed／未決：** 海岸距離算法、定價逐 Tile 加總與整數取整、完整 Schema、遷入示例公式的最終形式、開工排序、Tick 相位、Checkpoint 遷移與多分頁協調。
+- **Deferred（保留完整 Phase 1 目標）：** 建築停業／退出、人口遷出、空置／廢棄／復業的具體規則。舊吸引力／遷出公式不是首個 Vertical Slice 的權威 Migration Algorithm。
+- **文件治理：** 本索引是補充性 SDD 決策索引，不取代 `phase1_design.md`；本次同步不代表 P0 未決細節或遊戲平衡參數已完成審核。
 
 ## 四、實作前 P0 規格收斂
 
@@ -132,7 +138,7 @@
 
 ## 六、建議第一批 PR / Work Items（非實作完成聲明）
 
-1. **Docs reconciliation**：Conflict-01～04 已裁決；處理 BLOCKER-05，必要時同步 `phase1_design.md` 與本索引。
+1. **Docs reconciliation**：Conflict-01～05 均已裁決並同步；後續依 P0 未決項逐項審核與補充測試。
 2. **Core foundation**：GameState、Commands、Tick、Snapshot、Domain Events、Determinism Tests。
 3. **World and zoning**：Tile Grid、Parcel、靜態地價、退款及原子交易。
 4. **Road and development**：Road Planner、開工／完工、Building Definitions。
