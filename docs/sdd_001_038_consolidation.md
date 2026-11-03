@@ -112,7 +112,7 @@
 | 項目 | 待決定 | 建議預設（未批准） |
 | --- | --- | --- |
 | Map Initialization | 固定 LandMask、HQ 合法位置與開局起算 | 固定測試地圖；玩家先免費放置 HQ |
-| Parcel Geometry | 建立、連通、最小面積、重疊 | 矩形且 4-neighbor connected |
+| Parcel Geometry | **Confirmed：** 首個 Vertical Slice 一次框選一個完整軸對齊矩形 Parcel；4-neighbor 連通、禁止重疊、非法整筆拒絕 | **Experimental：** minParcelArea=1 Tile；**Proposed：** 最小長寬／可建面積、UI 警告、正式 Schema 與未來遷移 |
 | Road Planner | 起點、寬度、最短路、tie-break、失敗原因 | 確定性 Grid 搜尋 |
 | Building Selection | Zone→Building Type、Footprint、Capacity | 每種 Zone 先一種 Building |
 | Economy | 初始資金、分區費率、成本取整 | 固定精度，禁止透支 |
@@ -120,6 +120,17 @@
 | Development Order | 候選順序、無效候選重試 | 建立順序 FIFO，失敗跳過 |
 | Migration Atomicity | 住宅分配與人口守恆 | Plan→Validate→Commit |
 | Persistence | v1 Schema、Config Version、PRNG、Checkpoint | IndexedDB 原子 Checkpoint |
+
+### P0 Parcel Geometry — Confirmed（使用者選 A，2026-11-03）
+
+- **首個 Vertical Slice：** 玩家一次矩形框選只建立一個非空、完整、軸對齊的矩形 Parcel；不自動裁切、拆分或合併。這是 Slice 範圍限制，不永久排除未來不規則 Parcel。
+- **4-neighbor：** 完整矩形天然為單一 4-neighbor connected component；兩個僅對角接觸的 Parcel 不合併。Parcel Tile 歸屬唯一且與 Dense Tile Grid 保持一致（SDD-008）。
+- **合法性與 Atomicity：** 矩形範圍內不得有海洋、非法地形、既有道路、Parcel 或 Building 占用；任一 Tile 不合法則整筆分區 Command 拒絕，不允許部分提交，也不因失敗收取部分費用。
+- **Road Planner / Development：** 道路不得占用已分區或已占用 Tile，也不得切割 Parcel（SDD-010～017）；開工時才原子提交道路、Building Footprint 與工地（SDD-029～034），路徑規劃失敗不得部分開工。
+- **取消／退款：** 僅 `ZONED` Parcel 可取消或改分區（SDD-018～022）；80% 退款基於原實付 `zoningPaidAmount`，不因目前地價或未來地價重算。改分區仍為同一原子退款／收費交易。
+- **Conflict-01～05 與 Tick Order A：** ACTIVE 農場 Housing + Jobs、首個 Slice 的交付範圍、建築退出延期、道路開工時生成、主文件／SDD 權威原則均不變；Completion → Development → Migration → Settlement → Publish 順序不變。
+- **Experimental：** `minParcelArea = 1 Tile` 僅作原型測試，**不是已批准的正式下限**。Parcel 可合法建立不代表一定能放下 Building Footprint 或連接合法道路。
+- **Proposed／未決：** 最小長寬、最小可建面積、不可開發 Parcel 的 UI 警告、矩形 Bounds 與 Tile 集合的正式 Schema／驗證 API，以及未來支援不規則 Parcel 時的 ID、幾何、費用成本基礎與存檔版本遷移策略。
 
 ### P0 Tick Order — Confirmed（使用者選 A，2026-11-03）
 
