@@ -211,7 +211,7 @@ interface Building {
 }
 ```
 
-這是**概念 Schema**，不是已核准的最終 API。依 SDD-008、029～034，權威資料採 Dense Tile Grid 與正規化 Parcel／Building；Parcel 開發階段為 `ZONED → CONSTRUCTING → DEVELOPED`，施工開始時須保存 `completionTick`，完工後 Building 才進入 ACTIVE 並提供容量。`active / vacant / abandoned` 是未來營運狀態的舊概念，**不是** Parcel 施工階段，也不是本次核准的 Operational State Machine。正式 Schema、Parcel 分割／合併及佔地規則仍待設計。
+這是**概念 Schema**，不是已核准的最終 API。依 SDD-008、029～034，權威資料採 Dense Tile Grid 與正規化 Parcel／Building；Parcel 開發階段為 `ZONED → CONSTRUCTING → DEVELOPED`，施工開始時須保存 `completionTick`，完工後 Building 才進入 ACTIVE 並提供容量。`active / vacant / abandoned` 是未來營運狀態的舊概念，**不是** Parcel 施工階段，也不是本次核准的 Operational State Machine。正式 Schema 欄位與資料遷移仍待設計。**P0 Parcel Geometry 已確認（2026-11-03）：首個 Vertical Slice 僅允許玩家一次矩形框選建立一個完整、非空、軸對齊的矩形 Parcel；不自動裁切、拆分或合併。** 完整矩形天然滿足 4-neighbor 連通；對角接觸不合併。任何 Tile 若為海洋、非法地形、道路或已有 Parcel／Building 占用，整筆分區 Command 拒絕，不部分建立。Road Planner 仍依 SDD-017 避開已分區／已占用 Tile，並於 Development 開工時與工地原子提交。僅 `ZONED` Parcel 可取消或改分區，退款依原實付 `zoningPaidAmount` 的 80% 計算，與目前地價無關。**Experimental：** `minParcelArea = 1 Tile` 僅供 Prototype；允許分區不保證 Building Footprint／道路可開發。**Proposed／未決：** 最小長寬、最小可建面積、無法開發時的 UI 警告、正式矩形表示與驗證 API、日後不規則 Parcel 的存檔遷移。
 
 ### 5.2 分區操作
 
