@@ -192,75 +192,7 @@ test("72h catch-up yields to browser event loop under 4x CPU throttling", async 
       };
     });
   });
-  await page.addInitScript(() => {
-    let beats = 0,
-      last = 0,
-      maxGap = 0,
-      start = 0,
-      totalMs = 0,
-      active = false,
-      finished = false;
-    let maxGapAtTick = "",
-      maxGapAtMs = 0;
-    const longTasks: { duration: number; startTime: number }[] = [];
-    new PerformanceObserver((list) => {
-      for (const entry of list.getEntries())
-        if (
-          start &&
-          entry.startTime >= start &&
-          (!finished || entry.startTime <= start + totalMs)
-        )
-          longTasks.push({
-            duration: entry.duration,
-            startTime: entry.startTime - start,
-          });
-    }).observe({ entryTypes: ["longtask"] });
-    const recordGap = (now: number) => {
-      if (now - last > maxGap) {
-        maxGap = now - last;
-        maxGapAtMs = now - start;
-        maxGapAtTick =
-          document.querySelector('[data-testid="tick"]')?.textContent ?? "";
-      }
-    };
-    new MutationObserver(() => {
-      const running =
-        document.body?.textContent?.includes("正在補算離線進度") ?? false;
-      if (running && !active && !finished) {
-        active = true;
-        start = last = performance.now();
-      }
-      if (active && !running) {
-        const now = performance.now();
-        recordGap(now);
-        totalMs = now - start;
-        active = false;
-        finished = true;
-      }
-    }).observe(document, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-    });
-    setInterval(() => {
-      if (!active) return;
-      const now = performance.now();
-      recordGap(now);
-      last = now;
-      beats++;
-    }, 5);
-    Object.defineProperty(window, "testCatchUpMetrics", {
-      get: () => ({
-        beats,
-        maxGap,
-        totalMs,
-        finished,
-        maxGapAtTick,
-        maxGapAtMs,
-        longTasks,
-      }),
-    });
-  });
+  await page.addInitScript(installCatchUpProbe);
   const session = await context.newCDPSession(page);
   await session.send("Emulation.setCPUThrottlingRate", { rate: 4 });
   await page.reload({ waitUntil: "domcontentloaded" });
@@ -287,7 +219,106 @@ test("72h catch-up yields to browser event loop under 4x CPU throttling", async 
   );
   expect(metrics.finished).toBe(true);
   expect(metrics.beats).toBeGreaterThan(100);
-  expect(metrics.maxGap).toBeLessThan(500);
+  expect(metrics.longTaskObserverSupported).toBe(true);
+  expect(metrics.maxLongTaskMs).toBeLessThan(500);
   await session.send("Emulation.setCPUThrottlingRate", { rate: 1 });
   await session.detach();
+});
+
+function installCatchUpProbe() {
+  let beats = 0,
+    last = 0,
+    maxGap = 0,
+    start = 0,
+    totalMs = 0,
+    active = false,
+    finished = false;
+  let maxGapAtTick = "",
+    maxGapAtMs = 0;
+  const longTasks: { duration: number; startTime: number }[] = [];
+  new PerformanceObserver((list) => {
+    for (const entry of list.getEntries())
+      if (
+        start &&
+        entry.startTime + entry.duration > start &&
+        (!finished || entry.startTime <= start + totalMs)
+      )
+        longTasks.push({
+          duration: entry.duration,
+          startTime: entry.startTime - start,
+        });
+  }).observe({ entryTypes: ["longtask"] });
+  const recordGap = (now: number) => {
+    if (now - last > maxGap) {
+      maxGap = now - last;
+      maxGapAtMs = now - start;
+      maxGapAtTick =
+        document.querySelector('[data-testid="tick"]')?.textContent ?? "";
+    }
+  };
+  new MutationObserver(() => {
+    const running =
+      document.body?.textContent?.includes("正在補算離線進度") ?? false;
+    if (running && !active && !finished) {
+      active = true;
+      start = last = performance.now();
+    }
+    if (active && !running) {
+      const now = performance.now();
+      recordGap(now);
+      totalMs = now - start;
+      active = false;
+      finished = true;
+    }
+  }).observe(document, {
+    subtree: true,
+    childList: true,
+    characterData: true,
+  });
+  setInterval(() => {
+    if (!active) return;
+    const now = performance.now();
+    recordGap(now);
+    last = now;
+    beats++;
+  }, 5);
+  Object.defineProperty(window, "testCatchUpMetrics", {
+    get: () => ({
+      beats,
+      maxGap,
+      totalMs,
+      finished,
+      maxGapAtTick,
+      maxGapAtMs,
+      longTasks,
+      longTaskObserverSupported:
+        PerformanceObserver.supportedEntryTypes.includes("longtask"),
+      maxLongTaskMs: Math.max(0, ...longTasks.map((entry) => entry.duration)),
+    }),
+  });
+}
+
+test("catch-up probe detects deliberately blocking work", async ({ page }) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: "村委會大樓", exact: true }),
+  ).toBeEnabled();
+  await page.evaluate(installCatchUpProbe);
+  const metrics = await page.evaluate(async () => {
+    const note = document.createElement("span");
+    note.hidden = true;
+    note.textContent = "正在補算離線進度";
+    document.body.append(note);
+    await Promise.resolve();
+    const began = performance.now();
+    while (performance.now() - began < 650) {
+      /* Positive control for the long-task observer. */
+    }
+    note.remove();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    return Reflect.get(window, "testCatchUpMetrics");
+  });
+  expect(metrics.finished).toBe(true);
+  expect(metrics.longTaskObserverSupported).toBe(true);
+  expect(metrics.maxLongTaskMs).toBeGreaterThanOrEqual(600);
 });
