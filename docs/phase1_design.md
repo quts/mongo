@@ -324,7 +324,7 @@ closingCash = openingCash
 
 使用 Seeded PRNG：相同初始狀態、玩家指令、參數版本、Seed 與推進的遊戲時間，應產生相同結果。保留有限事件紀錄供 QA 重播。
 
-模擬先套用合法指令，再於 Micro Tick 更新開發需求、農舍及人口等增量；跨越遊戲月邊界時另行結算收入與支出，最後發布狀態快照。具體順序須在 M3–M5 用 Invariant 測試確認，避免同一期間重複入帳。
+**已確認的 Tick Pipeline（P0 Tick Order，2026-11-03）：** 在 Command Boundary 套用已驗證指令，接著依序執行 **Construction Completion → Development → Migration → Monthly Settlement（僅遊戲月邊界）→ Snapshot / Domain Event Publication**。到達 `completionTick` 的工地先完工，ACTIVE Building 的 Housing / Jobs 在同一 Tick 的 Migration Phase 即可使用；本 Tick 新開工建築不得因 Phase 順序跳過施工工期。開工與道路／Footprint 原子提交的規則不變。線上與離線補算共用同一條 Core Tick Pipeline；離線固定 1×、最多 72 小時，不能用不同的簡化結算流程。月結算必須具備一次性邊界驗證，避免 Save/Load、重播或離線補算重複入帳。**Proposed（尚未單獨批准）：** `completionTick = startTick + durationTicks` 且 `durationTicks >= 1`、月結算使用 Tick 結束時點的狀態；精確遊戲月曆、相位及計價基準仍待測試。
 
 ## 九、3D Rendering 與 UI/UX
 
