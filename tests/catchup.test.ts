@@ -161,3 +161,25 @@ it("bootstrap intentionally starts an independent segment when existing roads ar
   expect(roadPlan(s, s.parcels.p1)).toEqual([29 * 64 + 30]);
   expect(JSON.stringify(s)).toBe(before);
 });
+
+it("injected monotonic budget yields after one expensive tick without changing the final state", async () => {
+  const c = setup(),
+    baseline = setup();
+  let clock = 0,
+    yields = 0,
+    last = 0;
+  c.subscribe(() => {
+    clock += 9;
+  });
+  await c.elapseBatched(1000 + 10 * 60000, true, {
+    monotonicNow: () => clock,
+    yieldControl: async () => {
+      expect(c.getSnapshot().tick - last).toBe(1);
+      last = c.getSnapshot().tick;
+      yields++;
+    },
+  });
+  baseline.elapse(1000 + 10 * 60000, true);
+  expect(yields).toBe(9);
+  expect(c.getSnapshot()).toEqual(baseline.getSnapshot());
+});

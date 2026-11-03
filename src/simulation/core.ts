@@ -481,6 +481,7 @@ export class Core {
       yieldControl: () => Promise<void>;
       cancelled?: () => boolean;
       onProgress?: (completed: number, total: number) => void;
+      monotonicNow?: () => number;
     },
   ): Promise<number> {
     if (this.publishing || this.advancing || !Number.isFinite(now) || now < 0)
@@ -491,9 +492,15 @@ export class Core {
       for (let completed = 0; completed < ticks;) {
         if (options.cancelled?.()) throw Error("CATCH_UP_CANCELLED");
         const end = Math.min(completed + 8, ticks);
+        const batchStarted = options.monotonicNow?.();
         while (completed < end) {
           this.runTick();
           completed++;
+          if (
+            batchStarted !== undefined &&
+            options.monotonicNow!() - batchStarted >= 8
+          )
+            break;
         }
         options.onProgress?.(completed, ticks);
         if (completed < ticks) await options.yieldControl();

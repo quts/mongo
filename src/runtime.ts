@@ -11,6 +11,7 @@ export class Runtime {
   status = "正在讀取本機島嶼…";
   lastSaved: { gameId: string; revision: number; tick: number } | null = null;
   private writer = false;
+  private checkpointConflict = false;
   private processing = false;
   private db?: IDBDatabase;
   private expectedRevision: number | null = null;
@@ -37,6 +38,8 @@ export class Runtime {
   }
   get storageStatus() {
     const saved = this.lastSaved;
+    if (this.checkpointConflict)
+      return `目前畫面含未儲存進度；磁碟存檔已被其他寫入者更新，重新載入會讀取磁碟最新存檔。${saved ? `此分頁最後成功存檔：Tick ${saved.tick}（版本 ${saved.revision}）。` : "此分頁尚未成功存檔。"}`;
     if (!saved)
       return this.unsaved
         ? "目前進度尚未儲存；重新載入將無法保留。"
@@ -56,7 +59,7 @@ export class Runtime {
     this.detach?.();
     this.detach = this.core.subscribe(() => {
       this.dirty = true;
-      this.notify();
+      if (!this.processing) this.notify();
     });
   }
   private restored(
@@ -121,11 +124,15 @@ export class Runtime {
     this.processing = true;
     this.pumping = (async () => {
       try {
+        let lastProgressAt = -Infinity;
         const ticks = await this.core.elapseBatched(now, offline, {
+          monotonicNow: () => performance.now(),
           yieldControl: () => new Promise((resolve) => setTimeout(resolve, 0)),
           cancelled: () => this.dead,
           onProgress: (done, total) => {
-            if (total > 8) {
+            const time = performance.now();
+            if (total > 8 && (done === total || time - lastProgressAt >= 50)) {
+              lastProgressAt = time;
               this.status = `正在補算${offline ? "離線" : "背景"}進度 ${done} / ${total} 個遊戲日；完成前暫停操作。`;
               this.notify();
             }
@@ -158,6 +165,8 @@ export class Runtime {
     return this.pumping;
   }
   private fail(e: unknown) {
+    this.checkpointConflict =
+      e instanceof Error && e.message === "CHECKPOINT_CONFLICT";
     this.writer = false;
     if (this.timer) clearInterval(this.timer);
     this.status = `${e instanceof Error ? e.message : "STORAGE_ERROR"}：已停止寫入與模擬；畫面可能含未儲存進度。`;

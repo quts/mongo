@@ -149,6 +149,7 @@ describe("runtime checkpoint and recovery regressions", () => {
     r.command({ id: "pause", type: "time", speed: 1, paused: true });
     await r.save();
     expect(r.status).toContain("CHECKPOINT_CONFLICT");
+    expect(r.storageStatus).toContain("重新載入會讀取磁碟最新存檔");
     expect(r.unsaved).toBe(true);
     expect(r.lastSaved?.revision).toBe(saved.stateRevision);
     db.close();
