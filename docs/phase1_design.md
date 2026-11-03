@@ -217,6 +217,18 @@ interface Building {
 
 **P0 Building Selection 已確認（2026-11-03，方案 A）：** 首個 Vertical Slice 每種 Zone 對應一個固定 Building Type（Agriculture→Farm、Residential→House、Commercial→Shop），以資料驅動 Building Definition 描述容量、Footprint 與施工工期；Development Planner 自動選擇合法 Footprint，並與 Road Planner 聯合驗證後原子開工。Footprint 必須完全位於所屬矩形 Parcel 內，不得侵占其他 Parcel／道路／Building，亦不改變 Parcel 幾何。Farm ACTIVE 時同時提供有限 Housing + Jobs（Conflict-01）；所有 Building 僅在 Completion Phase 完工並 ACTIVE 後才提供 Housing／Jobs，Migration Phase 可於同 Tick 使用。穩定 Building ID、人口 Building Aggregate、Oldest Building First 與 Tick Order A 不變。**Experimental：** Farm／House／Shop 均 2×2，Housing／Jobs 分別 (4,5)／(8,0)／(0,8)，工期分別 1／1／2 Tick；這些數值並未批准。**Proposed／未決：** Footprint 候選排序／旋轉、道路只需接觸 Parcel 還是直接接觸 Footprint、Building Definition 與存檔版本化／遷移、無可用 Footprint 的重試及 UI 呈現；1× 農業開局 1～3 分鐘仍須實測。此決策只固定首個 Slice 的類型選擇，不排除後續多建築種類。
 
+### P0 Implementation Baseline — Confirmed（2026-11-03）
+
+使用者已整批批准 P0 詳細設計；**架構、演算法、資料結構、財務短缺策略、資料遷移及驗收規則為 Confirmed**，詳細可執行規格以 [SDD Consolidation §四之一](sdd_001_038_consolidation.md) 為準。下列摘要與既有 Phase 1 Confirmed 決策並存；**Experimental** 平衡數值仍待 Prototype 驗證，並非正式平衡定案：
+
+- **Map／Parcel：** 64×64 固定版本化測試 LandMask；Tile Index `y*64+x`；HQ 合法放置後從 Tick 0 啟動；矩形使用 half-open Bounds，逐 Tile 驗證並原子建立，合法分區不保證可開發。
+- **Road／Building：** 1-Tile、4-neighbor 公共道路；先接既有路、確定性最少新增 Tile BFS 與完整路徑字典序 tie-break；失敗時合法 1-Tile Bootstrap。道路只須正交接觸 Parcel 邊界。每種 Zone 固定一種 Building；Footprint 在 Parcel 內按 row-major 穩定排序，自動選擇，不旋轉；Road+Footprint+CONSTRUCTING 原子提交。
+- **Economy：** 整數貨幣單位與 basis-point 倍率、逐 Tile 計價及 floor 取整；80% 原實付退款、改 Zone 原子交易；月結算若支出超過 Treasury，只扣至 0 並記錄未支付額，不產生隱式負債。
+- **Tick／Development：** `completionTick=startTick+max(1,durationTicks)`；一 Tick 一遊戲日、120 Ticks 一個抽象月；月界在 Migration 後按期末狀態結算一次。ZONED 候選依建立順序 FIFO；失敗候選不占成功開工配額，每 Tick 重試；線上／背景／離線共用同一 deterministic Tick Pipeline。
+- **Migration：** `supported=min(totalHousing,floor(totalJobs*R))`；每 Tick 移民受 M 與剩餘容量限制；依 Building 建立順序原子分配。Farm ACTIVE 同時提供 Housing 與 Jobs。
+- **Persistence／QA：** IndexedDB 版本化原子 Checkpoint、純函式 Schema Migration、Web Locks 單 Writer／Revision CAS、失敗唯讀降級；固定 Seed + Commands + Config Replay。跨系統 12 項 Invariants 與 6 組 Golden Scenarios 為驗收基準，**尚未執行測試**。
+- **Experimental：** Farm／House／Shop 2×2；容量 (H,J)=(4,5)/(8,0)/(0,8)；工期 1/1/2 Tick；R=2、M=3、N=2；起始 Treasury 10000、地價／Zone Factor／海岸倍率等僅供 Balance Test。首批農場與移民 1× 1～3 分鐘仍是必須實測的 UX 目標。
+
 ### 5.2 分區操作
 
 `ApplyZone(tiles, targetZone)` 的處理流程：
